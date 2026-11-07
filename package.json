@@ -1,6 +1,6 @@
 {
 	"name": "@furnas-technology/event-calendar",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Framework-free, canvas-rendered event calendar: Gantt-style bars under nested row headings, with lane packing, sub-totals, per-period totals and broadcast/Gregorian/fiscal calendars. Strict TypeScript, Luxon dates.",
 	"license": "MIT",
 	"author": {
