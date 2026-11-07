@@ -119,4 +119,45 @@ export interface TimelineConfig<T> {
 	editable?: boolean;
 	/** Label for groups whose key is empty. Default `'(blank)'`. */
 	emptyLabel?: string;
+	/** Built-in view controls above the drawing. Nothing is shown unless an option is `true`. */
+	controls?: ControlsOptions;
+}
+
+/** Text of the built-in controls. */
+export interface ControlLabels {
+	zoomIn: string;
+	zoomOut: string;
+	zoomReset: string;
+	expandWidth: string;
+	fitWidth: string;
+	savePng: string;
+	first: string;
+	prev: string;
+	today: string;
+	next: string;
+	last: string;
+	/** The "every month" choice of the visible-months select. */
+	allMonths: string;
+	/** A visible-months choice, e.g. `6 months`. */
+	months: (count: number) => string;
+	/** After the visible date range, e.g. `3 of 23 months`. */
+	visible: (shown: number, total: number) => string;
+}
+
+/** Which built-in controls the timeline shows, in this order. Each is off unless `true`. */
+export interface ControlsOptions {
+	/** A+, A− and Reset (`zoom`). */
+	zoom?: boolean;
+	/** Expand width and Fit width (`expandWidth`, `fitWidth`). */
+	width?: boolean;
+	/** Save PNG (`toBlob`, downloaded as `fileName`). */
+	savePng?: boolean;
+	/** First / previous / today / next / last month, and the visible date range. */
+	navigation?: boolean;
+	/** Visible-months select. `true` offers 3, 6, 12, 24 and all months; pass your own month counts to change that. */
+	months?: boolean | readonly number[];
+	/** Download name for Save PNG. Default `'timeline.png'`. */
+	fileName?: string;
+	/** Replace any of the (English) control texts. */
+	labels?: Partial<ControlLabels>;
 }

@@ -27,6 +27,8 @@ export type {
 	AggregateOption,
 	AllocateOption,
 	BarOptions,
+	ControlLabels,
+	ControlsOptions,
 	GroupLevel,
 	MetricDef,
 	MetricValues,

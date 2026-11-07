@@ -36,31 +36,33 @@ Each release is also published to GitHub Packages, so this works unchanged if yo
 ```ts
 import { Timeline, type TimelineConfig } from '@furnas-technology/timeline';
 
-interface Flight {
+// Your own row type — any shape. The config below tells the timeline which properties hold the dates, the grouping
+// keys and the numbers to total; nothing here is required by the library.
+interface Item {
 	id: string;
-	channel: string;
-	vehicle: string;
+	category: string;
+	name: string;
 	start: string; // '2024-03-04'
 	end: string; // inclusive
-	cost: number;
+	amount: number;
 }
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
-const config: TimelineConfig<Flight> = {
-	start: (f) => f.start,
-	end: (f) => f.end,
-	rowId: (f) => f.id,
+const config: TimelineConfig<Item> = {
+	start: (r) => r.start,
+	end: (r) => r.end,
+	rowId: (r) => r.id,
 	groupBy: [
-		{ key: (f) => f.channel, subtotal: true },
-		{ key: (f) => f.vehicle, sort: (a, b) => (b.metrics.cost ?? 0) - (a.metrics.cost ?? 0) },
+		{ key: (r) => r.category, subtotal: true },
+		{ key: (r) => r.name, sort: (a, b) => (b.metrics.amount ?? 0) - (a.metrics.amount ?? 0) },
 	],
-	metrics: [{ id: 'cost', label: 'Cost', value: (f) => f.cost, format: (n) => usd.format(n) }],
+	metrics: [{ id: 'amount', label: 'Amount', value: (r) => r.amount, format: (n) => num.format(n) }],
 	totals: { grand: true },
-	calendar: 'broadcast',
+	calendar: 'gregorian',
 };
 
-const timeline = new Timeline(document.getElementById('plan')!, config, flights);
+const timeline = new Timeline(document.getElementById('plan')!, config, items);
 
 timeline.on('click', ({ rows }) => console.log('clicked', rows));
 ```
@@ -111,6 +113,7 @@ onBeforeUnmount(() => timeline?.destroy());
 | `editable`     | `boolean`                                         | `false`        | Allow dragging bars (continuous mode).                        |
 | `rowId`        | `(row) => string \| number`                       | index          | Stable identity of a row.                                     |
 | `emptyLabel`   | `string`                                          | `'(blank)'`    | Heading for empty group keys.                                 |
+| `controls`     | `ControlsOptions`                                 | none shown     | Built-in view controls above the drawing, each opt-in.        |
 
 ### Dates
 
@@ -171,10 +174,11 @@ totals: {
 }
 ```
 
-With one metric a total row reads `Total … value`; with several, each line is named after its metric (`Routines`,
-`Entry fees`) and the shaded row marks it as a total. Use `MetricDef.formatPeriod` for compact month cells (`$61M`).
+With one metric a total row reads `Total … value`; with several, each line is named after its metric (`Cost`,
+`Impressions`) and the shaded row marks it as a total. Use `MetricDef.formatPeriod` for compact month cells (`$61M`).
 
-Sub-totals are switched on per level with `GroupLevel.subtotal`.
+Sub-totals are switched on per level with `GroupLevel.subtotal`. For example, a media plan grouped by media group ›
+media type › vehicle with a cost metric (as in the advertising demo):
 
 ```
  Broadcast │ Metro TV │ Channel 9 │ ████ $84,500          ████ $51,300
@@ -198,6 +202,27 @@ Sub-totals are switched on per level with `GroupLevel.subtotal`.
 
 `timeline.setTotalsDepth(n)` reproduces a simple "totals level" toggle: `'none'`, `0` (grand only), or `n` (grand plus
 levels `0 … n-1`).
+
+### Controls
+
+The timeline can draw its own view controls in a bar above the drawing. Nothing is shown unless you switch an option
+on, and the controls appear in this order:
+
+```ts
+controls: {
+	zoom: true,       // A+  A−  Reset
+	width: true,      // Expand width  Fit width
+	savePng: true,    // Save PNG (downloads `fileName`, default 'timeline.png')
+	navigation: true, // ⏮ ◀ Today ▶ ⏭ and the visible range, e.g. "1 Jan 2026 – 31 Mar 2026 · 3 of 23 months"
+	months: true,     // visible months: 3, 6, 12, 24, All — or your own counts, e.g. [1, 3, 6]
+}
+```
+
+The buttons call the same methods you can call yourself (`zoom`, `expandWidth`, `fitWidth`, `toBlob`, `first`,
+`prev`, `today`, `next`, `last`, `setVisibleMonths`). Navigation is disabled at the ends of the data and in
+year-over-year mode, and the controls stay in place while an expanded drawing scrolls. Replace any text with
+`labels`, for example `` labels: { today: 'Heute', allMonths: 'Alle', months: (n) => `${n} Monate` } ``. Change the
+controls with `setConfig({ controls })`.
 
 ### Bars
 
@@ -282,11 +307,11 @@ otherwise the bar snaps back. The library never changes your rows: after accepti
 
 ```ts
 t.on('move', async ({ rows, deltaDays }) => {
-	const ok = await api.shiftFlights(
+	const ok = await api.shiftItems(
 		rows.map((r) => r.id),
 		deltaDays,
 	);
-	if (ok) t.setData(await api.loadFlights());
+	if (ok) t.setData(await api.loadItems());
 	return ok;
 });
 ```
@@ -320,8 +345,11 @@ Everything visual is in `Theme` — `scale`, `baseFontSize`, `fontFamily`, `padd
 theme: { fontFamily: 'Inter, sans-serif', barLines: 2, colors: { rowHeaderText: '#222', palette: ['#0b7285', '#e8590c'] } }
 ```
 
-The DOM elements carry the classes `ft-timeline`, `ft-timeline-canvas`, `ft-timeline-tooltip` and
-`ft-timeline-drag-badge` if you want to adjust them with CSS.
+The DOM elements carry the classes `ft-timeline`, `ft-timeline-viewport` (the horizontal scroll container),
+`ft-timeline-canvas`, `ft-timeline-tooltip` and `ft-timeline-drag-badge`, and the controls `ft-timeline-controls`,
+`ft-timeline-control-group`, `ft-timeline-control` and `ft-timeline-range`, if you want to adjust them with CSS. The
+controls take their font and colours from the theme. They are styled inline (which works under a strict
+Content-Security-Policy), so CSS overrides need `!important`.
 
 ## Browser support
 
@@ -333,12 +361,12 @@ ratio is reduced automatically to stay within it.
 
 [furnas-technology.github.io/timeline](https://furnas-technology.github.io/timeline/) — source in [`examples/`](https://github.com/furnas-technology/timeline/tree/main/examples):
 
-| Demo                | Data                                                                            | Shows                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Dance competitions  | Synthetic Australian season (fictional names)                                   | Region › competition › event, division regrouping, avg metric, drag to reschedule, AU fiscal calendar |
-| Advertising plan    | Synthetic media plan                                                            | Broadcast calendar, pro-rata cost by month, sub-totals at two levels, merge overlapping               |
-| Atlantic hurricanes | [NOAA HURDAT2](https://www.nhc.noaa.gov/data/#hurdat) 2015–2025 (public domain) | Year-over-year seasons, count / sum / max / min aggregates, custom sort by intensity                  |
-| Federal contracts   | [USAspending.gov](https://www.usaspending.gov/) Commerce FY2025 (public domain) | US federal fiscal calendar, multi-year pro-rata spend, rich HTMLElement tooltips                      |
+| Demo                | Data                                                                            | Shows                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Dance competitions  | Australian dance-competition listings, 2026–2027                                | Group by state, city or category type, count + average style metrics, drag to reschedule, AU FY |
+| Advertising plan    | Synthetic media plan                                                            | Broadcast calendar, pro-rata cost by month, sub-totals at two levels, merge overlapping         |
+| Atlantic hurricanes | [NOAA HURDAT2](https://www.nhc.noaa.gov/data/#hurdat) 2015–2025 (public domain) | Year-over-year seasons, count / sum / max / min aggregates, custom sort by intensity            |
+| Federal contracts   | [USAspending.gov](https://www.usaspending.gov/) Commerce FY2025 (public domain) | US federal fiscal calendar, multi-year pro-rata spend, rich HTMLElement tooltips                |
 
 ## Development
 

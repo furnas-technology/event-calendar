@@ -48,4 +48,3 @@ Pushing, merging the version PR and publishing need the user's go-ahead.
 
 - 0.1.0 is published to npm and GitHub Packages. The next release is the first via npm trusted publishing; check
   that its Release run publishes without `MY_NPM_TOKEN`.
-- Dance-competitions demo: the user will decide which sorts and metrics it should show (currently placeholders).

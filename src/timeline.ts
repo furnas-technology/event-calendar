@@ -2,6 +2,7 @@ import { addDays, type CalendarDate, dayNumber, parseDateInput, today } from './
 import { shiftPeriod } from './calendar/periods';
 import type { TimelineConfig, ViewMode } from './config';
 import { type BarMoveEvent, Emitter, type TimelineEventMap, type Unsubscribe } from './events';
+import { type Controls, createControls, hasControls } from './interaction/controls';
 import { createHitTester, type HitTester } from './interaction/hitTest';
 import { defaultTooltip, positionFloating, styleFloating } from './interaction/tooltip';
 import { computeLayout, type PreparedData, prepareData } from './layout/layout';
@@ -38,6 +39,9 @@ interface DragState<T> {
 export class Timeline<T> {
 	readonly element: HTMLDivElement;
 	readonly canvas: HTMLCanvasElement;
+	/** Horizontal scroll container around the canvas (below the controls). */
+	private readonly viewport: HTMLDivElement;
+	private controls: Controls | null = null;
 
 	private config: TimelineConfig<T>;
 	private rows: readonly T[];
@@ -72,9 +76,13 @@ export class Timeline<T> {
 		const doc = container.ownerDocument;
 		this.element = doc.createElement('div');
 		this.element.className = 'ft-timeline';
-		Object.assign(this.element.style, { position: 'relative', width: '100%', overflowX: 'auto', overflowY: 'hidden' });
+		this.element.style.width = '100%';
 		this.element.setAttribute('role', 'figure');
 		this.element.setAttribute('aria-label', 'Timeline');
+
+		this.viewport = doc.createElement('div');
+		this.viewport.className = 'ft-timeline-viewport';
+		Object.assign(this.viewport.style, { position: 'relative', width: '100%', overflowX: 'auto', overflowY: 'hidden' });
 
 		this.canvas = doc.createElement('canvas');
 		this.canvas.className = 'ft-timeline-canvas';
@@ -86,7 +94,8 @@ export class Timeline<T> {
 		this.badge = doc.createElement('div');
 		this.badge.className = 'ft-timeline-drag-badge';
 
-		this.element.append(this.canvas, this.tooltip, this.badge);
+		this.viewport.append(this.canvas, this.tooltip, this.badge);
+		this.element.append(this.viewport);
 		container.append(this.element);
 
 		const ctx = this.canvas.getContext('2d');
@@ -97,6 +106,7 @@ export class Timeline<T> {
 			return ctx.measureText(text).width;
 		});
 
+		this.syncControls();
 		this.applyStyles();
 		this.attachEvents();
 		this.render();
@@ -120,6 +130,7 @@ export class Timeline<T> {
 		if (patch.theme) this.theme = mergeTheme(this.theme, patch.theme);
 		if (patch.view) this.request = requestFromConfig(this.config);
 		this.prepared = prepareData(this.rows, this.config);
+		if ('controls' in patch || 'locale' in patch) this.syncControls();
 		this.applyStyles();
 		this.scheduleRender();
 	}
@@ -231,7 +242,7 @@ export class Timeline<T> {
 			cancelFrame(this.frame);
 			this.frame = null;
 		}
-		const available = this.element.clientWidth || this.element.parentElement?.clientWidth || 800;
+		const available = this.viewport.clientWidth || this.element.parentElement?.clientWidth || 800;
 		const width = Math.max(200, Math.floor(available * this.widthScale));
 		const layout = computeLayout(this.prepared, {
 			width,
@@ -257,6 +268,7 @@ export class Timeline<T> {
 			prev.totalMonths !== view.totalMonths
 		) {
 			this.lastView = view;
+			this.controls?.update(view);
 			this.emitter.emit('viewchange', view);
 		}
 	}
@@ -274,6 +286,23 @@ export class Timeline<T> {
 	// ---------------------------------------------------------------------------------------------------------------
 	// Internals
 	// ---------------------------------------------------------------------------------------------------------------
+
+	/** Create, replace or remove the control bar to match `config.controls`. */
+	private syncControls(): void {
+		this.controls?.element.remove();
+		this.controls = null;
+		const options = this.config.controls;
+		if (!options || !hasControls(options)) return;
+		this.controls = createControls(
+			this.element.ownerDocument,
+			this,
+			options,
+			this.theme,
+			this.config.locale ?? 'en-US',
+		);
+		this.element.prepend(this.controls.element);
+		if (this.layout) this.controls.update(this.layout.view);
+	}
 
 	private navigate(patch: Partial<ViewRequest>): void {
 		this.request = { ...this.request, ...patch };
@@ -342,6 +371,7 @@ export class Timeline<T> {
 		styleFloating(this.badge, this.theme, font);
 		this.badge.style.padding = '2px 6px';
 		this.canvas.style.touchAction = this.config.editable ? 'pan-y' : 'auto';
+		this.controls?.restyle(this.theme);
 	}
 
 	private attachEvents(): void {
@@ -361,19 +391,19 @@ export class Timeline<T> {
 		listen(this.canvas, 'pointerleave', () => {
 			if (!this.drag) this.setHover(null);
 		});
-		listen(this.element, 'scroll', () => this.hideTooltip());
+		listen(this.viewport, 'scroll', () => this.hideTooltip());
 
 		const view = this.element.ownerDocument.defaultView;
 		if (view && 'ResizeObserver' in view) {
-			let lastWidth = this.element.clientWidth;
+			let lastWidth = this.viewport.clientWidth;
 			const observer = new view.ResizeObserver(() => {
-				const width = this.element.clientWidth;
+				const width = this.viewport.clientWidth;
 				if (width !== lastWidth) {
 					lastWidth = width;
 					this.scheduleRender();
 				}
 			});
-			observer.observe(this.element);
+			observer.observe(this.viewport);
 			this.cleanups.push(() => observer.disconnect());
 		}
 		if (view?.matchMedia) {
@@ -542,7 +572,7 @@ export class Timeline<T> {
 		positionFloating(
 			el,
 			{ ...bar.rect, x: bar.rect.x + dx },
-			{ scrollLeft: this.element.scrollLeft, width: this.element.clientWidth || layout.width },
+			{ scrollLeft: this.viewport.scrollLeft, width: this.viewport.clientWidth || layout.width },
 			layout.height,
 			themeMetrics(this.theme).padding,
 		);

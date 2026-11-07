@@ -1,4 +1,10 @@
-import { type CalendarOption, type GroupLevel, Timeline, type TimelineConfig, type ViewState } from '../../src/index';
+import {
+	type CalendarOption,
+	type ControlsOptions,
+	type GroupLevel,
+	Timeline,
+	type TimelineConfig,
+} from '../../src/index';
 
 /** One way of grouping a dataset, selectable from the toolbar. */
 export interface DemoPreset<T> {
@@ -8,6 +14,10 @@ export interface DemoPreset<T> {
 	groupBy: GroupLevel<T>[];
 	/** Initial sub-total depth for this preset (see `Timeline.setTotalsDepth`). */
 	totalsDepth: number;
+	/** Shows each row once per value of a multi-valued field, so it can be grouped by that field. */
+	expand?: (row: T) => T[];
+	/** `false` hides the grand total — use with `expand`, whose repeated rows a grand total would count twice. */
+	grandTotal?: boolean;
 }
 
 export interface DemoDefinition<T> {
@@ -16,7 +26,8 @@ export interface DemoDefinition<T> {
 	summary: string;
 	/** What to try in this demo. */
 	tips: string[];
-	source: { label: string; url: string; license: string } | null;
+	/** Where the data comes from; `null` for synthetic data generated in the browser. */
+	source: { label: string; url?: string; license: string } | null;
 	rows: T[];
 	config: Omit<TimelineConfig<T>, 'groupBy'>;
 	presets: DemoPreset<T>[];
@@ -28,30 +39,22 @@ export interface DemoDefinition<T> {
 
 /** The part of a mounted demo the shared toolbar drives — no row type involved. */
 export interface DemoHandle {
-	readonly timeline: Pick<
-		Timeline<unknown>,
-		| 'first'
-		| 'prev'
-		| 'next'
-		| 'last'
-		| 'today'
-		| 'setVisibleMonths'
-		| 'setMode'
-		| 'zoom'
-		| 'expandWidth'
-		| 'fitWidth'
-		| 'setTotalsDepth'
-		| 'getViewState'
-		| 'toBlob'
-	>;
-	readonly presets: readonly { label: string; levels: readonly string[]; totalsDepth: number }[];
+	/** The view controls (zoom, width, PNG, navigation) are built into the timeline; the shell only switches mode. */
+	readonly timeline: Pick<Timeline<unknown>, 'setMode'>;
+	readonly presets: readonly {
+		label: string;
+		levels: readonly string[];
+		totalsDepth: number;
+		grandTotal?: boolean;
+	}[];
 	readonly canEdit: boolean;
 	applyPreset(index: number): void;
+	/** `Timeline.setTotalsDepth`, keeping the grand total off for presets with `grandTotal: false`. */
+	setTotalsDepth(depth: number | 'none'): void;
 	setMerge(on: boolean): void;
 	setEditable(on: boolean): void;
 	setCalendar(index: number): void;
 	setBarLines(lines: number): void;
-	onView(listener: (view: ViewState) => void): void;
 	onLog(listener: (message: string) => void): void;
 	destroy(): void;
 }
@@ -66,6 +69,9 @@ export interface Demo {
 	mount(host: HTMLElement): DemoHandle;
 }
 
+/** Every built-in view control; the timeline draws them as the second toolbar row. */
+const viewControls: ControlsOptions = { zoom: true, width: true, savePng: true, navigation: true, months: true };
+
 /** Wrap a typed demo so the shell can treat every dataset alike. */
 export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 	return {
@@ -79,8 +85,30 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 			let rows = def.rows;
 			const firstPreset = def.presets[0];
 			if (!firstPreset) throw new Error(`demo ${def.id} has no presets`);
-			const timeline = new Timeline<T>(host, { ...def.config, groupBy: firstPreset.groupBy }, rows);
-			timeline.setTotalsDepth(firstPreset.totalsDepth);
+			let preset = firstPreset;
+			/** Displayed (possibly expanded) row → the source row it came from. */
+			let origin = new Map<T, T>();
+			const display = (): T[] => {
+				origin = new Map();
+				const expand = preset.expand;
+				if (!expand) return rows;
+				return rows.flatMap((row) => {
+					const shown = expand(row);
+					for (const s of shown) origin.set(s, row);
+					return shown;
+				});
+			};
+			const timeline = new Timeline<T>(
+				host,
+				{ controls: viewControls, ...def.config, groupBy: preset.groupBy },
+				display(),
+			);
+			const setTotalsDepth = (depth: number | 'none') => {
+				timeline.setTotalsDepth(depth);
+				if (preset.grandTotal === false)
+					timeline.setConfig({ totals: { ...timeline.getConfig().totals, grand: false } });
+			};
+			setTotalsDepth(preset.totalsDepth);
 			const logListeners: ((message: string) => void)[] = [];
 			const log = (message: string) => {
 				for (const l of logListeners) l(message);
@@ -96,10 +124,10 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 			if (shift) {
 				timeline.on('move', async ({ rows: moved, deltaDays }) => {
 					await new Promise((resolve) => setTimeout(resolve, 120)); // pretend to save
-					const ids = new Set(moved);
+					const ids = new Set(moved.map((r) => origin.get(r) ?? r));
 					rows = rows.map((r) => (ids.has(r) ? shift(r, deltaDays) : r));
-					timeline.setData(rows);
-					log(`move   ${moved.length} row(s) by ${deltaDays > 0 ? '+' : ''}${deltaDays} day(s)`);
+					timeline.setData(display());
+					log(`move   ${ids.size} row(s) by ${deltaDays > 0 ? '+' : ''}${deltaDays} day(s)`);
 					return true;
 				});
 			}
@@ -109,11 +137,15 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 				presets: def.presets,
 				canEdit: shift !== undefined,
 				applyPreset(index) {
-					const preset = def.presets[index];
-					if (!preset) return;
-					timeline.setConfig({ groupBy: preset.groupBy });
-					timeline.setTotalsDepth(preset.totalsDepth);
+					const next = def.presets[index];
+					if (!next) return;
+					const reshape = next.expand !== preset.expand;
+					preset = next;
+					timeline.setConfig({ groupBy: next.groupBy });
+					if (reshape) timeline.setData(display());
+					setTotalsDepth(next.totalsDepth);
 				},
+				setTotalsDepth,
 				setMerge(on) {
 					timeline.setConfig({ bars: { ...timeline.getConfig().bars, mergeOverlapping: on } });
 				},
@@ -126,11 +158,6 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 				},
 				setBarLines(lines) {
 					timeline.setConfig({ theme: { barLines: lines } });
-				},
-				onView(listener) {
-					timeline.on('viewchange', listener);
-					const view = timeline.getViewState();
-					if (view) listener(view);
 				},
 				onLog(listener) {
 					logListeners.push(listener);
