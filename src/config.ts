@@ -7,7 +7,7 @@ import type { DeepPartial, Theme } from './render/theme';
 export interface GroupLevel<T> {
 	/** Identity of the group a row belongs to at this level. */
 	key: (row: T) => string | number | null | undefined;
-	/** Row-heading text. Defaults to `String(key)`; empty keys show {@link TimelineConfig.emptyLabel}. */
+	/** Row-heading text. Defaults to `String(key)`; empty keys show {@link EventCalendarConfig.emptyLabel}. */
 	label?: (row: T) => string;
 	/**
 	 * Sibling order at this level. `'asc'`/`'desc'` sort by label (locale-aware, numeric). A comparator receives
@@ -92,7 +92,7 @@ export interface ViewOptions {
 	hideEmptyGroups?: boolean;
 }
 
-export interface TimelineConfig<T> {
+export interface EventCalendarConfig<T> {
 	start: (row: T) => DateInput;
 	/** Inclusive end date. */
 	end: (row: T) => DateInput;
@@ -144,7 +144,7 @@ export interface ControlLabels {
 	visible: (shown: number, total: number) => string;
 }
 
-/** Which built-in controls the timeline shows, in this order. Each is off unless `true`. */
+/** Which built-in controls the event calendar shows, in this order. Each is off unless `true`. */
 export interface ControlsOptions {
 	/** A+, A− and Reset (`zoom`). */
 	zoom?: boolean;
@@ -156,7 +156,7 @@ export interface ControlsOptions {
 	navigation?: boolean;
 	/** Visible-months select. `true` offers 3, 6, 12, 24 and all months; pass your own month counts to change that. */
 	months?: boolean | readonly number[];
-	/** Download name for Save PNG. Default `'timeline.png'`. */
+	/** Download name for Save PNG. Default `'event-calendar.png'`. */
 	fileName?: string;
 	/** Replace any of the (English) control texts. */
 	labels?: Partial<ControlLabels>;

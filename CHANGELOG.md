@@ -1,4 +1,6 @@
-# @furnas-technology/timeline
+# @furnas-technology/event-calendar
+
+Formerly published as `@furnas-technology/timeline` (0.1.0 below).
 
 ## 0.1.0
 

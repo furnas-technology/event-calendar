@@ -1,15 +1,15 @@
 import { addDays, type CalendarDate, dayNumber, parseDateInput, today } from './calendar/dates';
 import { shiftPeriod } from './calendar/periods';
-import type { TimelineConfig, ViewMode } from './config';
-import { type BarMoveEvent, Emitter, type TimelineEventMap, type Unsubscribe } from './events';
+import type { EventCalendarConfig, ViewMode } from './config';
+import { type BarMoveEvent, Emitter, type EventCalendarEventMap, type Unsubscribe } from './events';
 import { type Controls, createControls, hasControls } from './interaction/controls';
 import { createHitTester, type HitTester } from './interaction/hitTest';
 import { defaultTooltip, positionFloating, styleFloating } from './interaction/tooltip';
 import { computeLayout, type PreparedData, prepareData } from './layout/layout';
 import { cachedMeasure, type MeasureText } from './layout/measure';
-import type { BarLayout, TimelineLayout, ViewState } from './layout/types';
+import type { BarLayout, EventCalendarLayout, ViewState } from './layout/types';
 import type { ViewRequest } from './layout/view';
-import { type Context2D, drawTimeline } from './render/canvas';
+import { type Context2D, drawEventCalendar } from './render/canvas';
 import { clamp, defaultTheme, mergeTheme, type Theme, themeMetrics } from './render/theme';
 
 /** Largest canvas side we allocate (backing pixels); beyond this browsers silently fail to draw. */
@@ -27,36 +27,36 @@ interface DragState<T> {
 }
 
 /**
- * A canvas timeline mounted into a container element.
+ * A canvas event calendar mounted into a container element.
  *
  * ```ts
- * const timeline = new Timeline(document.getElementById('plan')!, config, rows);
- * timeline.on('click', ({ rows }) => openEditor(rows));
+ * const calendar = new EventCalendar(document.getElementById('plan')!, config, rows);
+ * calendar.on('click', ({ rows }) => openEditor(rows));
  * // later
- * timeline.destroy();
+ * calendar.destroy();
  * ```
  */
-export class Timeline<T> {
+export class EventCalendar<T> {
 	readonly element: HTMLDivElement;
 	readonly canvas: HTMLCanvasElement;
 	/** Horizontal scroll container around the canvas (below the controls). */
 	private readonly viewport: HTMLDivElement;
 	private controls: Controls | null = null;
 
-	private config: TimelineConfig<T>;
+	private config: EventCalendarConfig<T>;
 	private rows: readonly T[];
 	private prepared: PreparedData<T>;
 	private theme: Theme;
 	private request: ViewRequest;
 	private widthScale = 1;
-	private layout: TimelineLayout<T> | null = null;
+	private layout: EventCalendarLayout<T> | null = null;
 	private hitTest: HitTester<T> | null = null;
 	private lastView: ViewState | null = null;
 
 	private readonly ctx: CanvasRenderingContext2D;
 	private readonly tooltip: HTMLDivElement;
 	private readonly badge: HTMLDivElement;
-	private readonly emitter = new Emitter<TimelineEventMap<T>>();
+	private readonly emitter = new Emitter<EventCalendarEventMap<T>>();
 	private readonly measure: MeasureText;
 	private readonly images = new Map<string, HTMLImageElement | 'error'>();
 	private readonly pendingMoves = new Map<string, number>();
@@ -66,7 +66,7 @@ export class Timeline<T> {
 	private frame: number | null = null;
 	private destroyed = false;
 
-	constructor(container: HTMLElement, config: TimelineConfig<T>, rows: readonly T[] = []) {
+	constructor(container: HTMLElement, config: EventCalendarConfig<T>, rows: readonly T[] = []) {
 		this.config = config;
 		this.rows = rows;
 		this.theme = mergeTheme(defaultTheme, config.theme);
@@ -75,31 +75,31 @@ export class Timeline<T> {
 
 		const doc = container.ownerDocument;
 		this.element = doc.createElement('div');
-		this.element.className = 'ft-timeline';
+		this.element.className = 'ft-event-calendar';
 		this.element.style.width = '100%';
 		this.element.setAttribute('role', 'figure');
-		this.element.setAttribute('aria-label', 'Timeline');
+		this.element.setAttribute('aria-label', 'Event calendar');
 
 		this.viewport = doc.createElement('div');
-		this.viewport.className = 'ft-timeline-viewport';
+		this.viewport.className = 'ft-event-calendar-viewport';
 		Object.assign(this.viewport.style, { position: 'relative', width: '100%', overflowX: 'auto', overflowY: 'hidden' });
 
 		this.canvas = doc.createElement('canvas');
-		this.canvas.className = 'ft-timeline-canvas';
+		this.canvas.className = 'ft-event-calendar-canvas';
 		this.canvas.style.display = 'block';
 		this.canvas.setAttribute('role', 'img');
 
 		this.tooltip = doc.createElement('div');
-		this.tooltip.className = 'ft-timeline-tooltip';
+		this.tooltip.className = 'ft-event-calendar-tooltip';
 		this.badge = doc.createElement('div');
-		this.badge.className = 'ft-timeline-drag-badge';
+		this.badge.className = 'ft-event-calendar-drag-badge';
 
 		this.viewport.append(this.canvas, this.tooltip, this.badge);
 		this.element.append(this.viewport);
 		container.append(this.element);
 
 		const ctx = this.canvas.getContext('2d');
-		if (!ctx) throw new Error('Timeline: 2D canvas context is not available');
+		if (!ctx) throw new Error('EventCalendar: 2D canvas context is not available');
 		this.ctx = ctx;
 		this.measure = cachedMeasure((text, font) => {
 			ctx.font = font;
@@ -125,7 +125,7 @@ export class Timeline<T> {
 	}
 
 	/** Shallow-merge configuration. Passing `view` resets navigation to it; `theme` is merged over the current one. */
-	setConfig(patch: Partial<TimelineConfig<T>>): void {
+	setConfig(patch: Partial<EventCalendarConfig<T>>): void {
 		this.config = { ...this.config, ...patch };
 		if (patch.theme) this.theme = mergeTheme(this.theme, patch.theme);
 		if (patch.view) this.request = requestFromConfig(this.config);
@@ -135,7 +135,7 @@ export class Timeline<T> {
 		this.scheduleRender();
 	}
 
-	getConfig(): Readonly<TimelineConfig<T>> {
+	getConfig(): Readonly<EventCalendarConfig<T>> {
 		return this.config;
 	}
 
@@ -219,12 +219,12 @@ export class Timeline<T> {
 	// Events & output
 	// ---------------------------------------------------------------------------------------------------------------
 
-	on<K extends keyof TimelineEventMap<T>>(type: K, handler: TimelineEventMap<T>[K]): Unsubscribe {
+	on<K extends keyof EventCalendarEventMap<T>>(type: K, handler: EventCalendarEventMap<T>[K]): Unsubscribe {
 		return this.emitter.on(type, handler);
 	}
 
 	/** The most recent layout (positions of everything drawn). */
-	getLayout(): TimelineLayout<T> | null {
+	getLayout(): EventCalendarLayout<T> | null {
 		return this.layout;
 	}
 
@@ -273,7 +273,7 @@ export class Timeline<T> {
 		}
 	}
 
-	/** Remove the timeline from the DOM and release every listener and observer. */
+	/** Remove the calendar from the DOM and release every listener and observer. */
 	destroy(): void {
 		if (this.destroyed) return;
 		this.destroyed = true;
@@ -342,7 +342,7 @@ export class Timeline<T> {
 		if (!layout) return;
 		const offsets = new Map<string, number>();
 		for (const [id, days] of this.pendingMoves) offsets.set(id, days * layout.dayWidth);
-		drawTimeline(this.ctx as Context2D, layout, this.theme, {
+		drawEventCalendar(this.ctx as Context2D, layout, this.theme, {
 			measure: this.measure,
 			drag: this.drag?.active ? { barId: this.drag.bar.bar.id, dx: this.drag.dx } : null,
 			offsets,
@@ -511,7 +511,7 @@ export class Timeline<T> {
 			try {
 				if ((await handler(event)) !== true) accepted = false;
 			} catch (error) {
-				console.error('[timeline] "move" handler threw', error);
+				console.error('[event-calendar] "move" handler threw', error);
 				accepted = false;
 			}
 		}
@@ -579,7 +579,7 @@ export class Timeline<T> {
 	}
 }
 
-function requestFromConfig<T>(config: TimelineConfig<T>): ViewRequest {
+function requestFromConfig<T>(config: EventCalendarConfig<T>): ViewRequest {
 	const zone = config.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const view = config.view ?? {};
 	return {
@@ -589,10 +589,10 @@ function requestFromConfig<T>(config: TimelineConfig<T>): ViewRequest {
 	};
 }
 
-function describe<T>(layout: TimelineLayout<T>): string {
-	if (layout.empty) return 'Timeline: no data';
+function describe<T>(layout: EventCalendarLayout<T>): string {
+	if (layout.empty) return 'Event calendar: no data';
 	const v = layout.view;
-	return `Timeline from ${v.start.toISODate()} to ${v.end.toISODate()}, ${layout.bars.length} bars`;
+	return `Event calendar from ${v.start.toISODate()} to ${v.end.toISODate()}, ${layout.bars.length} bars`;
 }
 
 function requestFrame(cb: () => void): number {

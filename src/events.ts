@@ -1,5 +1,5 @@
 import type { CalendarDate } from './calendar/dates';
-import type { Bar, TimelineLayout, ViewState } from './layout/types';
+import type { Bar, EventCalendarLayout, ViewState } from './layout/types';
 
 export interface BarClickEvent<T> {
 	bar: Bar<T>;
@@ -26,12 +26,12 @@ export interface BarMoveEvent<T> {
  * rejection, reverts the bar. After accepting, update your data and call `setData` — the bar stays at its new
  * position until then.
  */
-export interface TimelineEventMap<T> {
+export interface EventCalendarEventMap<T> {
 	click: (event: BarClickEvent<T>) => void;
 	hover: (event: BarHoverEvent<T>) => void;
 	move: (event: BarMoveEvent<T>) => boolean | Promise<boolean>;
 	viewchange: (view: ViewState) => void;
-	render: (event: { layout: TimelineLayout<T> }) => void;
+	render: (event: { layout: EventCalendarLayout<T> }) => void;
 }
 
 export type Unsubscribe = () => void;
@@ -60,7 +60,7 @@ export class Emitter<M extends { [K in keyof M]: (...args: never[]) => unknown }
 			try {
 				(handler as (...a: Parameters<M[K]>) => unknown)(...args);
 			} catch (error) {
-				console.error(`[timeline] "${String(type)}" handler threw`, error);
+				console.error(`[event-calendar] "${String(type)}" handler threw`, error);
 			}
 		}
 	}

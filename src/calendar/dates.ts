@@ -1,11 +1,11 @@
 import { DateTime } from 'luxon';
 
 /**
- * Anything the timeline accepts as a date.
+ * Anything the event calendar accepts as a date.
  *
  * - `string` — ISO 8601. Date-only strings (`2024-03-01`) are taken literally. Strings with a time and offset are
- *   converted to {@link TimelineConfig.zone} before the calendar date is read.
- * - `Date` / `number` (epoch ms) — read in {@link TimelineConfig.zone} (default: the system zone).
+ *   converted to {@link EventCalendarConfig.zone} before the calendar date is read.
+ * - `Date` / `number` (epoch ms) — read in {@link EventCalendarConfig.zone} (default: the system zone).
  * - `DateTime` — its own calendar date is used (`year`/`month`/`day` in whatever zone it carries).
  */
 export type DateInput = DateTime | Date | string | number;

@@ -1,11 +1,14 @@
-# @furnas-technology/timeline
+# @furnas-technology/event-calendar
 
-A framework-free, canvas-rendered **hierarchical timeline** for TypeScript: a Gantt-style flowchart with nested row
-headings, automatic lane packing, **sub-totals and grand totals per level**, and **per-month totals** — on a
-**broadcast**, **Gregorian** or **fiscal-year** calendar. Dates are handled with [Luxon](https://moment.github.io/luxon/).
+A framework-free, canvas-rendered **event calendar** for TypeScript: events drawn as Gantt-style bars across the
+calendar, under nested row headings, with automatic lane packing, **sub-totals and grand totals per level**, and
+**per-month totals** — on a **broadcast**, **Gregorian** or **fiscal-year** calendar. Dates are handled with
+[Luxon](https://moment.github.io/luxon/).
 
-**[Live demos](https://furnas-technology.github.io/timeline/)** — dance competitions, an advertising plan, Atlantic
-hurricanes (NOAA) and U.S. federal contracts (USAspending) · **[API reference](https://furnas-technology.github.io/timeline/api/)**
+Formerly published as `@furnas-technology/timeline` (0.1.0).
+
+**[Live demos](https://furnas-technology.github.io/event-calendar/)** — dance competitions, an advertising plan, Atlantic
+hurricanes (NOAA) and U.S. federal contracts (USAspending) · **[API reference](https://furnas-technology.github.io/event-calendar/api/)**
 
 It grew out of a media-planning flowchart, so it is good at "who is running what, when, and what does it cost per
 month", but it is fully generic: you describe your row type `T` and which properties drive grouping, dates and metrics.
@@ -25,7 +28,7 @@ month", but it is fully generic: you describe your row type `T` and which proper
 ## Install
 
 ```sh
-npm install @furnas-technology/timeline luxon
+npm install @furnas-technology/event-calendar luxon
 ```
 
 Each release is also published to GitHub Packages, so this works unchanged if your `.npmrc` maps
@@ -34,9 +37,9 @@ Each release is also published to GitHub Packages, so this works unchanged if yo
 ## Quick start
 
 ```ts
-import { Timeline, type TimelineConfig } from '@furnas-technology/timeline';
+import { EventCalendar, type EventCalendarConfig } from '@furnas-technology/event-calendar';
 
-// Your own row type — any shape. The config below tells the timeline which properties hold the dates, the grouping
+// Your own row type — any shape. The config below tells the event calendar which properties hold the dates, the grouping
 // keys and the numbers to total; nothing here is required by the library.
 interface Item {
 	id: string;
@@ -49,7 +52,7 @@ interface Item {
 
 const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
-const config: TimelineConfig<Item> = {
+const config: EventCalendarConfig<Item> = {
 	start: (r) => r.start,
 	end: (r) => r.end,
 	rowId: (r) => r.id,
@@ -62,12 +65,12 @@ const config: TimelineConfig<Item> = {
 	calendar: 'gregorian',
 };
 
-const timeline = new Timeline(document.getElementById('plan')!, config, items);
+const calendar = new EventCalendar(document.getElementById('plan')!, config, items);
 
-timeline.on('click', ({ rows }) => console.log('clicked', rows));
+calendar.on('click', ({ rows }) => console.log('clicked', rows));
 ```
 
-The timeline fills its container's width and grows vertically to fit its rows. Call `timeline.destroy()` when you
+The event calendar fills its container's width and grows vertically to fit its rows. Call `calendar.destroy()` when you
 remove it.
 
 ### Using it from a framework
@@ -77,22 +80,22 @@ The library owns one DOM element, so wrap it in whatever lifecycle your framewor
 ```tsx
 // React
 useEffect(() => {
-	const t = new Timeline(ref.current!, config, rows);
+	const t = new EventCalendar(ref.current!, config, rows);
 	return () => t.destroy();
 }, []);
-useEffect(() => timelineRef.current?.setData(rows), [rows]);
+useEffect(() => calendarRef.current?.setData(rows), [rows]);
 ```
 
 ```ts
 // Angular
-ngAfterViewInit() { this.timeline = new Timeline(this.host.nativeElement, config, this.rows); }
-ngOnDestroy() { this.timeline?.destroy(); }
+ngAfterViewInit() { this.calendar = new EventCalendar(this.host.nativeElement, config, this.rows); }
+ngOnDestroy() { this.calendar?.destroy(); }
 ```
 
 ```ts
 // Vue
-onMounted(() => (timeline = new Timeline(el.value!, config, rows.value)));
-onBeforeUnmount(() => timeline?.destroy());
+onMounted(() => (calendar = new EventCalendar(el.value!, config, rows.value)));
+onBeforeUnmount(() => calendar?.destroy());
 ```
 
 ## Configuration
@@ -117,7 +120,7 @@ onBeforeUnmount(() => timeline?.destroy());
 
 ### Dates
 
-`DateInput` is `string | Date | number | DateTime`. The timeline works in **calendar dates** (no time of day):
+`DateInput` is `string | Date | number | DateTime`. The event calendar works in **calendar dates** (no time of day):
 
 - ISO **date-only** strings such as `'2024-03-01'` are taken literally — the recommended format.
 - `Date` objects and epoch milliseconds are read in `zone`. Note `new Date('2024-03-01')` is UTC midnight in
@@ -200,19 +203,19 @@ media type › vehicle with a cost metric (as in the advertising demo):
 - **`hideRedundant`** — a group with no bars of its own and exactly one child would show the same numbers as that
   child's sub-total, so its total is suppressed. If the child level has no sub-totals, the parent's is kept.
 
-`timeline.setTotalsDepth(n)` reproduces a simple "totals level" toggle: `'none'`, `0` (grand only), or `n` (grand plus
+`calendar.setTotalsDepth(n)` reproduces a simple "totals level" toggle: `'none'`, `0` (grand only), or `n` (grand plus
 levels `0 … n-1`).
 
 ### Controls
 
-The timeline can draw its own view controls in a bar above the drawing. Nothing is shown unless you switch an option
+The event calendar can draw its own view controls in a bar above the drawing. Nothing is shown unless you switch an option
 on, and the controls appear in this order:
 
 ```ts
 controls: {
 	zoom: true,       // A+  A−  Reset
 	width: true,      // Expand width  Fit width
-	savePng: true,    // Save PNG (downloads `fileName`, default 'timeline.png')
+	savePng: true,    // Save PNG (downloads `fileName`, default 'event-calendar.png')
 	navigation: true, // ⏮ ◀ Today ▶ ⏭ and the visible range, e.g. "1 Jan 2026 – 31 Mar 2026 · 3 of 23 months"
 	months: true,     // visible months: 3, 6, 12, 24, All — or your own counts, e.g. [1, 3, 6]
 }
@@ -221,7 +224,7 @@ controls: {
 The buttons call the same methods you can call yourself (`zoom`, `expandWidth`, `fitWidth`, `toBlob`, `first`,
 `prev`, `today`, `next`, `last`, `setVisibleMonths`). Navigation is disabled at the ends of the data and in
 year-over-year mode, and the controls stay in place while an expanded drawing scrolls. Replace any text with
-`labels`, for example `` labels: { today: 'Heute', allMonths: 'Alle', months: (n) => `${n} Monate` } ``. Change the
+`labels`, for example ``labels: { today: 'Heute', allMonths: 'Alle', months: (n) => `${n} Monate` }``. Change the
 controls with `setConfig({ controls })`.
 
 ### Bars
@@ -253,7 +256,7 @@ US federal FY2025 is October 2024 – September 2025, Australian FY2025 is July 
 `FY2025`, and year-over-year mode runs from the first fiscal month.
 
 ```ts
-import { createBroadcastCalendar, createFiscalCalendar } from '@furnas-technology/timeline';
+import { createBroadcastCalendar, createFiscalCalendar } from '@furnas-technology/event-calendar';
 
 calendar: createBroadcastCalendar({ weekStartsOn: 7, locale: 'en-AU' }); // Sunday weeks
 calendar: createFiscalCalendar({ startMonth: 10 }); // US federal year
@@ -266,7 +269,7 @@ must be numbered within their year (`month.number` 1–12) so that `(year, numbe
 ## API
 
 ```ts
-const t = new Timeline<T>(container, config, rows?);
+const t = new EventCalendar<T>(container, config, rows?);
 
 t.setData(rows);                 // replace rows
 t.setConfig(patch);              // shallow merge; `view` resets navigation; `theme` merges
@@ -319,10 +322,10 @@ t.on('move', async ({ rows, deltaDays }) => {
 ### Headless use
 
 The layout engine is pure and DOM-free. `prepareData` + `computeLayout` return every rectangle, label and total, which
-you can render yourself (SVG, PDF, server-side) or with `drawTimeline` onto any 2D context.
+you can render yourself (SVG, PDF, server-side) or with `drawEventCalendar` onto any 2D context.
 
 ```ts
-import { computeLayout, defaultTheme, drawTimeline, prepareData } from '@furnas-technology/timeline';
+import { computeLayout, defaultTheme, drawEventCalendar, prepareData } from '@furnas-technology/event-calendar';
 
 const layout = computeLayout(prepareData(rows, config), {
 	width: 1200,
@@ -333,7 +336,7 @@ const layout = computeLayout(prepareData(rows, config), {
 	theme: defaultTheme,
 	view: { mode: 'continuous', start: null, months: null },
 });
-drawTimeline(ctx, layout, defaultTheme, { measure });
+drawEventCalendar(ctx, layout, defaultTheme, { measure });
 ```
 
 ## Theming
@@ -345,21 +348,21 @@ Everything visual is in `Theme` — `scale`, `baseFontSize`, `fontFamily`, `padd
 theme: { fontFamily: 'Inter, sans-serif', barLines: 2, colors: { rowHeaderText: '#222', palette: ['#0b7285', '#e8590c'] } }
 ```
 
-The DOM elements carry the classes `ft-timeline`, `ft-timeline-viewport` (the horizontal scroll container),
-`ft-timeline-canvas`, `ft-timeline-tooltip` and `ft-timeline-drag-badge`, and the controls `ft-timeline-controls`,
-`ft-timeline-control-group`, `ft-timeline-control` and `ft-timeline-range`, if you want to adjust them with CSS. The
+The DOM elements carry the classes `ft-event-calendar`, `ft-event-calendar-viewport` (the horizontal scroll container),
+`ft-event-calendar-canvas`, `ft-event-calendar-tooltip` and `ft-event-calendar-drag-badge`, and the controls `ft-event-calendar-controls`,
+`ft-event-calendar-control-group`, `ft-event-calendar-control` and `ft-event-calendar-range`, if you want to adjust them with CSS. The
 controls take their font and colours from the theme. They are styled inline (which works under a strict
 Content-Security-Policy), so CSS overrides need `!important`.
 
 ## Browser support
 
-Evergreen browsers (Chrome, Edge, Firefox, Safari 14+) — the timeline uses Pointer Events, `ResizeObserver` and canvas
+Evergreen browsers (Chrome, Edge, Firefox, Safari 14+) — the event calendar uses Pointer Events, `ResizeObserver` and canvas
 2D. Very tall plans are limited by the browser's maximum canvas size (~16 000 px at 1× pixel ratio); the device pixel
 ratio is reduced automatically to stay within it.
 
 ## Demos
 
-[furnas-technology.github.io/timeline](https://furnas-technology.github.io/timeline/) — source in [`examples/`](https://github.com/furnas-technology/timeline/tree/main/examples):
+[furnas-technology.github.io/event-calendar](https://furnas-technology.github.io/event-calendar/) — source in [`examples/`](https://github.com/furnas-technology/event-calendar/tree/main/examples):
 
 | Demo                | Data                                                                            | Shows                                                                                           |
 | ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |

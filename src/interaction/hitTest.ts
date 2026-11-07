@@ -1,9 +1,9 @@
-import type { BarLayout, GroupLayout, LaneLayout, TimelineLayout } from '../layout/types';
+import type { BarLayout, EventCalendarLayout, GroupLayout, LaneLayout } from '../layout/types';
 
 export type HitTester<T> = (x: number, y: number) => BarLayout<T> | null;
 
 /** Build a bar lookup: binary search the lane by y, then the bar by x. O(log lanes + log bars). */
-export function createHitTester<T>(layout: TimelineLayout<T>): HitTester<T> {
+export function createHitTester<T>(layout: EventCalendarLayout<T>): HitTester<T> {
 	const lanes: LaneLayout<T>[] = [];
 	const collect = (group: GroupLayout<T>) => {
 		lanes.push(...group.lanes);

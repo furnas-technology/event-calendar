@@ -158,7 +158,7 @@ export interface ViewState {
 	readonly canGoForward: boolean;
 }
 
-export interface TimelineLayout<T> {
+export interface EventCalendarLayout<T> {
 	readonly width: number;
 	readonly height: number;
 	readonly headerHeight: number;

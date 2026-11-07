@@ -3,7 +3,7 @@ import type { ControlLabels, ControlsOptions } from '../config';
 import type { ViewState } from '../layout/types';
 import type { Theme } from '../render/theme';
 
-/** The timeline methods the controls drive. */
+/** The calendar methods the controls drive. */
 export interface ControlTarget {
 	zoom(factor: number | 'reset'): void;
 	expandWidth(factor?: number): void;
@@ -51,8 +51,8 @@ export function hasControls(options: ControlsOptions | undefined): boolean {
 
 /**
  * Build the control bar: only the enabled groups, in a fixed order. Styled through CSSOM (works under a strict CSP);
- * restyle with CSS via the `ft-timeline-controls`, `ft-timeline-control-group`, `ft-timeline-control` and
- * `ft-timeline-range` classes.
+ * restyle with CSS via the `ft-event-calendar-controls`, `ft-event-calendar-control-group`, `ft-event-calendar-control` and
+ * `ft-event-calendar-range` classes.
  */
 export function createControls(
 	doc: Document,
@@ -63,14 +63,14 @@ export function createControls(
 ): Controls {
 	const labels: ControlLabels = { ...defaultControlLabels, ...options.labels };
 	const bar = doc.createElement('div');
-	bar.className = 'ft-timeline-controls';
+	bar.className = 'ft-event-calendar-controls';
 	bar.setAttribute('role', 'toolbar');
-	bar.setAttribute('aria-label', 'Timeline view');
+	bar.setAttribute('aria-label', 'Event calendar view');
 	const controls: (HTMLButtonElement | HTMLSelectElement)[] = [];
 
 	const group = (...children: HTMLElement[]) => {
 		const g = doc.createElement('div');
-		g.className = 'ft-timeline-control-group';
+		g.className = 'ft-event-calendar-control-group';
 		g.append(...children);
 		bar.append(g);
 		return g;
@@ -78,7 +78,7 @@ export function createControls(
 	const button = (text: string, onClick: () => void, title?: string) => {
 		const b = doc.createElement('button');
 		b.type = 'button';
-		b.className = 'ft-timeline-control';
+		b.className = 'ft-event-calendar-control';
 		b.textContent = text;
 		if (title) {
 			b.title = title;
@@ -103,7 +103,7 @@ export function createControls(
 		);
 	}
 	if (options.savePng) {
-		const fileName = options.fileName ?? 'timeline.png';
+		const fileName = options.fileName ?? 'event-calendar.png';
 		group(
 			button(labels.savePng, () => {
 				void target.toBlob('image/png').then((blob) => {
@@ -142,7 +142,7 @@ export function createControls(
 	if (time && options.months) {
 		const counts = Array.isArray(options.months) ? options.months : DEFAULT_MONTHS;
 		const select = doc.createElement('select');
-		select.className = 'ft-timeline-control';
+		select.className = 'ft-event-calendar-control';
 		select.setAttribute('aria-label', 'Visible months');
 		for (const n of counts) select.append(option(labels.months(n), String(n)));
 		select.append(option(labels.allMonths, 'all'));
@@ -155,7 +155,7 @@ export function createControls(
 	}
 	if (time && options.navigation) {
 		range = doc.createElement('span');
-		range.className = 'ft-timeline-range';
+		range.className = 'ft-event-calendar-range';
 		range.setAttribute('aria-live', 'polite');
 		time.append(range);
 	}

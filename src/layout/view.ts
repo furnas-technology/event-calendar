@@ -4,7 +4,7 @@ import type { Period, TimeCalendar } from '../calendar/types';
 import type { ViewMode } from '../config';
 import { clamp } from '../render/theme';
 
-/** Navigation state the host controls (via the Timeline API). */
+/** Navigation state the host controls (via the `EventCalendar` API). */
 export interface ViewRequest {
 	mode: ViewMode;
 	/** Requested first visible date; snapped to its month and clamped to the data. `null` = first data month. */

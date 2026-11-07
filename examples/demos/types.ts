@@ -1,9 +1,9 @@
 import {
 	type CalendarOption,
 	type ControlsOptions,
+	EventCalendar,
+	type EventCalendarConfig,
 	type GroupLevel,
-	Timeline,
-	type TimelineConfig,
 } from '../../src/index';
 
 /** One way of grouping a dataset, selectable from the toolbar. */
@@ -12,7 +12,7 @@ export interface DemoPreset<T> {
 	/** Heading of each level, used to label the totals-depth options. */
 	levels: string[];
 	groupBy: GroupLevel<T>[];
-	/** Initial sub-total depth for this preset (see `Timeline.setTotalsDepth`). */
+	/** Initial sub-total depth for this preset (see `EventCalendar.setTotalsDepth`). */
 	totalsDepth: number;
 	/** Shows each row once per value of a multi-valued field, so it can be grouped by that field. */
 	expand?: (row: T) => T[];
@@ -29,7 +29,7 @@ export interface DemoDefinition<T> {
 	/** Where the data comes from; `null` for synthetic data generated in the browser. */
 	source: { label: string; url?: string; license: string } | null;
 	rows: T[];
-	config: Omit<TimelineConfig<T>, 'groupBy'>;
+	config: Omit<EventCalendarConfig<T>, 'groupBy'>;
 	presets: DemoPreset<T>[];
 	/** Returns the row moved by `days`; enables the Editable toggle. */
 	shift?: (row: T, days: number) => T;
@@ -39,8 +39,8 @@ export interface DemoDefinition<T> {
 
 /** The part of a mounted demo the shared toolbar drives — no row type involved. */
 export interface DemoHandle {
-	/** The view controls (zoom, width, PNG, navigation) are built into the timeline; the shell only switches mode. */
-	readonly timeline: Pick<Timeline<unknown>, 'setMode'>;
+	/** The view controls (zoom, width, PNG, navigation) are built into the calendar; the shell only switches mode. */
+	readonly calendar: Pick<EventCalendar<unknown>, 'setMode'>;
 	readonly presets: readonly {
 		label: string;
 		levels: readonly string[];
@@ -49,7 +49,7 @@ export interface DemoHandle {
 	}[];
 	readonly canEdit: boolean;
 	applyPreset(index: number): void;
-	/** `Timeline.setTotalsDepth`, keeping the grand total off for presets with `grandTotal: false`. */
+	/** `EventCalendar.setTotalsDepth`, keeping the grand total off for presets with `grandTotal: false`. */
 	setTotalsDepth(depth: number | 'none'): void;
 	setMerge(on: boolean): void;
 	setEditable(on: boolean): void;
@@ -69,7 +69,7 @@ export interface Demo {
 	mount(host: HTMLElement): DemoHandle;
 }
 
-/** Every built-in view control; the timeline draws them as the second toolbar row. */
+/** Every built-in view control; the calendar draws them as the second toolbar row. */
 const viewControls: ControlsOptions = { zoom: true, width: true, savePng: true, navigation: true, months: true };
 
 /** Wrap a typed demo so the shell can treat every dataset alike. */
@@ -98,15 +98,15 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 					return shown;
 				});
 			};
-			const timeline = new Timeline<T>(
+			const calendar = new EventCalendar<T>(
 				host,
 				{ controls: viewControls, ...def.config, groupBy: preset.groupBy },
 				display(),
 			);
 			const setTotalsDepth = (depth: number | 'none') => {
-				timeline.setTotalsDepth(depth);
+				calendar.setTotalsDepth(depth);
 				if (preset.grandTotal === false)
-					timeline.setConfig({ totals: { ...timeline.getConfig().totals, grand: false } });
+					calendar.setConfig({ totals: { ...calendar.getConfig().totals, grand: false } });
 			};
 			setTotalsDepth(preset.totalsDepth);
 			const logListeners: ((message: string) => void)[] = [];
@@ -114,7 +114,7 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 				for (const l of logListeners) l(message);
 			};
 
-			timeline.on('click', ({ bar }) =>
+			calendar.on('click', ({ bar }) =>
 				log(
 					`click  ${bar.groupLabels.join(' › ')}  ${bar.start.toISODate()} → ${bar.end.toISODate()}  (${bar.rows.length} row(s))`,
 				),
@@ -122,18 +122,18 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 
 			const shift = def.shift;
 			if (shift) {
-				timeline.on('move', async ({ rows: moved, deltaDays }) => {
+				calendar.on('move', async ({ rows: moved, deltaDays }) => {
 					await new Promise((resolve) => setTimeout(resolve, 120)); // pretend to save
 					const ids = new Set(moved.map((r) => origin.get(r) ?? r));
 					rows = rows.map((r) => (ids.has(r) ? shift(r, deltaDays) : r));
-					timeline.setData(display());
+					calendar.setData(display());
 					log(`move   ${ids.size} row(s) by ${deltaDays > 0 ? '+' : ''}${deltaDays} day(s)`);
 					return true;
 				});
 			}
 
 			return {
-				timeline,
+				calendar,
 				presets: def.presets,
 				canEdit: shift !== undefined,
 				applyPreset(index) {
@@ -141,29 +141,29 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 					if (!next) return;
 					const reshape = next.expand !== preset.expand;
 					preset = next;
-					timeline.setConfig({ groupBy: next.groupBy });
-					if (reshape) timeline.setData(display());
+					calendar.setConfig({ groupBy: next.groupBy });
+					if (reshape) calendar.setData(display());
 					setTotalsDepth(next.totalsDepth);
 				},
 				setTotalsDepth,
 				setMerge(on) {
-					timeline.setConfig({ bars: { ...timeline.getConfig().bars, mergeOverlapping: on } });
+					calendar.setConfig({ bars: { ...calendar.getConfig().bars, mergeOverlapping: on } });
 				},
 				setEditable(on) {
-					timeline.setConfig({ editable: on && shift !== undefined });
+					calendar.setConfig({ editable: on && shift !== undefined });
 				},
 				setCalendar(index) {
 					const option = def.calendars[index];
-					if (option) timeline.setConfig({ calendar: option.value });
+					if (option) calendar.setConfig({ calendar: option.value });
 				},
 				setBarLines(lines) {
-					timeline.setConfig({ theme: { barLines: lines } });
+					calendar.setConfig({ theme: { barLines: lines } });
 				},
 				onLog(listener) {
 					logListeners.push(listener);
 				},
 				destroy() {
-					timeline.destroy();
+					calendar.destroy();
 				},
 			};
 		},

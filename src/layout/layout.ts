@@ -2,7 +2,7 @@ import { type CalendarOption, resolveCalendar } from '../calendar';
 import { type CalendarDate, dayNumber, maxDate, minDate, today } from '../calendar/dates';
 import { periodsBetween } from '../calendar/periods';
 import type { Period, TimeCalendar } from '../calendar/types';
-import type { TimelineConfig } from '../config';
+import type { EventCalendarConfig } from '../config';
 import { pick, type Theme, type ThemeMetrics, themeMetrics } from '../render/theme';
 import { type AllocationTarget, allocate, type ResolvedMetric, resolveMetrics } from './aggregate';
 import { buildBars } from './bars';
@@ -13,6 +13,7 @@ import { normalizeRows } from './normalize';
 import type {
 	Bar,
 	BarLayout,
+	EventCalendarLayout,
 	GridLine,
 	GroupLayout,
 	HeaderCell,
@@ -21,7 +22,6 @@ import type {
 	NormalizedRow,
 	PeriodColumn,
 	Rect,
-	TimelineLayout,
 	TotalLine,
 	TotalRowLayout,
 	ViewState,
@@ -38,7 +38,7 @@ import {
 
 /** Rows parsed once per `setData`/`setConfig`; layout is recomputed from this on every resize or navigation. */
 export interface PreparedData<T> {
-	readonly config: TimelineConfig<T>;
+	readonly config: EventCalendarConfig<T>;
 	readonly calendar: TimeCalendar;
 	readonly metrics: readonly ResolvedMetric<T>[];
 	readonly rows: readonly NormalizedRow<T>[];
@@ -54,7 +54,7 @@ export interface PreparedData<T> {
 	readonly collator: Intl.Collator;
 }
 
-export function prepareData<T>(rows: readonly T[], config: TimelineConfig<T>): PreparedData<T> {
+export function prepareData<T>(rows: readonly T[], config: EventCalendarConfig<T>): PreparedData<T> {
 	const locale = config.locale ?? 'en-US';
 	const zone = config.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const calendar = resolveCalendar(config.calendar as CalendarOption | undefined, locale);
@@ -99,7 +99,7 @@ export interface LayoutOptions {
 
 interface Context<T> {
 	prepared: PreparedData<T>;
-	config: TimelineConfig<T>;
+	config: EventCalendarConfig<T>;
 	theme: Theme;
 	tm: ThemeMetrics;
 	measure: MeasureText;
@@ -117,7 +117,7 @@ interface Context<T> {
 	yearIndex: Map<number, number>;
 }
 
-export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptions): TimelineLayout<T> {
+export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptions): EventCalendarLayout<T> {
 	const { config, calendar } = prepared;
 	const theme = options.theme;
 	const tm = themeMetrics(theme);
@@ -587,7 +587,7 @@ function yoyViewState<T>(prepared: PreparedData<T>): ViewState {
 	};
 }
 
-function emptyLayout<T>(prepared: PreparedData<T>, width: number, tm: ThemeMetrics): TimelineLayout<T> {
+function emptyLayout<T>(prepared: PreparedData<T>, width: number, tm: ThemeMetrics): EventCalendarLayout<T> {
 	const now = prepared.calendar.monthOf(prepared.dataStart ?? today(prepared.zone));
 	const headerHeight = tm.padding * 2 + 2 * tm.axisLineHeight;
 	const root: GroupLayout<T> = {

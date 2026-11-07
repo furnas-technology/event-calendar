@@ -111,9 +111,9 @@ function setOptions(select: HTMLSelectElement, labels: readonly string[], select
 	select.value = String(selected);
 }
 
-// ---- toolbar (row 1; the view controls in row 2 belong to the timeline itself) ----------------------------
+// ---- toolbar (row 1; the view controls in row 2 belong to the calendar itself) ----------------------------
 const toggles: Record<string, (h: DemoHandle, on: boolean) => void> = {
-	yoy: (h, on) => h.timeline.setMode(on ? 'yoy' : 'continuous'),
+	yoy: (h, on) => h.calendar.setMode(on ? 'yoy' : 'continuous'),
 	merge: (h, on) => h.setMerge(on),
 	editable: (h, on) => h.setEditable(on),
 };

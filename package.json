@@ -1,22 +1,24 @@
 {
-	"name": "@furnas-technology/timeline",
+	"name": "@furnas-technology/event-calendar",
 	"version": "0.1.0",
-	"description": "Framework-free, canvas-rendered hierarchical timeline (Gantt/flowchart) with lane packing, sub-totals, per-period totals and broadcast/Gregorian calendars. Strict TypeScript, Luxon dates.",
+	"description": "Framework-free, canvas-rendered event calendar: Gantt-style bars under nested row headings, with lane packing, sub-totals, per-period totals and broadcast/Gregorian/fiscal calendars. Strict TypeScript, Luxon dates.",
 	"license": "MIT",
 	"author": {
 		"name": "Furnas Technology",
 		"email": "info@furnas.technology",
 		"url": "https://github.com/furnas-technology"
 	},
-	"homepage": "https://github.com/furnas-technology/timeline#readme",
+	"homepage": "https://github.com/furnas-technology/event-calendar#readme",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/furnas-technology/timeline.git"
+		"url": "git+https://github.com/furnas-technology/event-calendar.git"
 	},
 	"bugs": {
-		"url": "https://github.com/furnas-technology/timeline/issues"
+		"url": "https://github.com/furnas-technology/event-calendar/issues"
 	},
 	"keywords": [
+		"event-calendar",
+		"calendar",
 		"timeline",
 		"gantt",
 		"flowchart",

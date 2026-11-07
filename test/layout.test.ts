@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
-import type { TimelineConfig } from '../src/config';
+import type { EventCalendarConfig } from '../src/config';
 import { packLanes } from '../src/layout/lanes';
 import { columnWidth, fitText } from '../src/layout/measure';
 import { generateFlightVehicles } from './fixtures/flightVehicles';
@@ -17,7 +17,7 @@ interface Row {
 	type?: string;
 }
 
-const base: TimelineConfig<Row> = {
+const base: EventCalendarConfig<Row> = {
 	start: (r) => r.start,
 	end: (r) => r.end,
 	rowId: (r) => r.id,
@@ -98,7 +98,7 @@ describe('row-header column sizing', () => {
 		row('4', 'ACT', 'x', '2024-01-01', '2024-01-07', 10),
 		row('5', 'VIC', 'x', '2024-01-01', '2024-01-07', 10),
 	];
-	const config: TimelineConfig<Row> = { ...base, groupBy: [{ key: (r) => r.g1 }] };
+	const config: EventCalendarConfig<Row> = { ...base, groupBy: [{ key: (r) => r.g1 }] };
 
 	it('shows full labels when they fit the header budget', () => {
 		const l = layoutOf(rows, config);
@@ -239,7 +239,7 @@ describe('totals (parity with commit 7d5b7f1a)', () => {
 		row('B', 'Y', 'b', '2024-02-19', '2024-03-03', 2800), // 14 days @200: Feb 1400, Mar 1400
 		row('C', 'Y', 'c', '2024-03-04', '2024-03-10', 700), // 7 days @100: Mar 700
 	];
-	const config: TimelineConfig<Row> = {
+	const config: EventCalendarConfig<Row> = {
 		...base,
 		groupBy: [
 			{ key: (r) => r.g1, subtotal: true },

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve `@furnas-technology/timeline`.
+Thanks for helping improve `@furnas-technology/event-calendar`.
 
 ## Setup
 
@@ -14,14 +14,14 @@ npm test
 
 ## Project layout
 
-| Path               | Purpose                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `src/calendar/`    | Calendar dates (Luxon, UTC-midnight), broadcast and Gregorian calendars, period helpers  |
-| `src/layout/`      | Pure, DOM-free layout: normalise → group → bars → lanes → totals → positions             |
-| `src/render/`      | Theme and canvas renderer (draws a finished layout)                                      |
-| `src/interaction/` | Hit testing and tooltip placement                                                        |
-| `src/timeline.ts`  | The `Timeline` class: DOM, resizing, navigation, pointer events                          |
-| `test/`            | Vitest: calendar and layout unit tests, canvas renderer (node canvas), DOM tests (jsdom) |
+| Path                   | Purpose                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `src/calendar/`        | Calendar dates (Luxon, UTC-midnight), broadcast and Gregorian calendars, period helpers  |
+| `src/layout/`          | Pure, DOM-free layout: normalise → group → bars → lanes → totals → positions             |
+| `src/render/`          | Theme and canvas renderer (draws a finished layout)                                      |
+| `src/interaction/`     | Hit testing and tooltip placement                                                        |
+| `src/eventCalendar.ts` | The `EventCalendar` class: DOM, resizing, navigation, pointer events                     |
+| `test/`                | Vitest: calendar and layout unit tests, canvas renderer (node canvas), DOM tests (jsdom) |
 
 Most behaviour lives in the layout layer and can be tested without a browser — please add a test there for any change
 in grouping, totals, lanes or positions.

@@ -52,7 +52,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if npm view "@furnas-technology/timeline@$VERSION" version --registry https://npm.pkg.github.com >/dev/null 2>&1; then
+          if npm view "@furnas-technology/event-calendar@$VERSION" version --registry https://npm.pkg.github.com >/dev/null 2>&1; then
             echo "$VERSION is already on GitHub Packages"
           else
             npm publish --registry https://npm.pkg.github.com --provenance=false --ignore-scripts
