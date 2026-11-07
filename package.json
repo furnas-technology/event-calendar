@@ -70,7 +70,7 @@
 		"check:pkg": "publint --strict && attw --pack . --profile node16",
 		"docs": "typedoc",
 		"changeset": "changeset",
-		"version-packages": "changeset version",
+		"version-packages": "changeset version && biome format --write CHANGELOG.md",
 		"prepublishOnly": "npm run typecheck && npm run test && npm run build && npm run check:pkg",
 		"release": "npm run build && changeset publish"
 	},
