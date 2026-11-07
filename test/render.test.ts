@@ -1,13 +1,13 @@
 import { createCanvas } from '@napi-rs/canvas';
 import { describe, expect, it } from 'vitest';
-import type { TimelineConfig } from '../src/config';
+import type { EventCalendarConfig } from '../src/config';
 import { computeLayout, prepareData } from '../src/layout/layout';
-import { type Context2D, drawTimeline } from '../src/render/canvas';
+import { type Context2D, drawEventCalendar } from '../src/render/canvas';
 import { contrastText, parseColor } from '../src/render/color';
 import { defaultTheme, mergeTheme } from '../src/render/theme';
 import { type FlightVehicle, generateFlightVehicles } from './fixtures/flightVehicles';
 
-const config: TimelineConfig<FlightVehicle> = {
+const config: EventCalendarConfig<FlightVehicle> = {
 	start: (r) => r.startDate,
 	end: (r) => r.endDate,
 	rowId: (r) => r.id,
@@ -37,7 +37,7 @@ function render(view: 'continuous' | 'yoy' = 'continuous') {
 	});
 	canvas.width = layout.width;
 	canvas.height = layout.height;
-	drawTimeline(ctx as unknown as Context2D, layout, defaultTheme, { measure });
+	drawEventCalendar(ctx as unknown as Context2D, layout, defaultTheme, { measure });
 	return { ctx, layout };
 }
 
@@ -83,7 +83,7 @@ describe('canvas renderer', () => {
 			view: { mode: 'continuous', start: null, months: null },
 		});
 		expect(layout.empty).toBe(true);
-		expect(() => drawTimeline(ctx as unknown as Context2D, layout, defaultTheme, { measure })).not.toThrow();
+		expect(() => drawEventCalendar(ctx as unknown as Context2D, layout, defaultTheme, { measure })).not.toThrow();
 	});
 });
 

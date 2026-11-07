@@ -13,7 +13,7 @@ labels: bug
 <!-- A minimal config + a few rows, or a StackBlitz/CodeSandbox link. -->
 
 ```ts
-const config: TimelineConfig<Row> = {
+const config: EventCalendarConfig<Row> = {
 	/* … */
 };
 const rows: Row[] = [
@@ -22,7 +22,7 @@ const rows: Row[] = [
 ```
 
 **Environment**
-- @furnas-technology/timeline version:
+- @furnas-technology/event-calendar version:
 - luxon version:
 - Browser / OS:
 - Calendar (`broadcast` / `gregorian` / custom):

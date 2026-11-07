@@ -1,5 +1,5 @@
 import { inclusiveDays, parseDateInput } from '../calendar/dates';
-import type { TimelineConfig } from '../config';
+import type { EventCalendarConfig } from '../config';
 import { type ResolvedMetric, readValue } from './aggregate';
 import type { NormalizedRow } from './types';
 
@@ -11,7 +11,7 @@ export interface NormalizeResult<T> {
 /** Parse dates, group keys and metric values of every row once. Input rows are never mutated. */
 export function normalizeRows<T>(
 	rows: readonly T[],
-	config: TimelineConfig<T>,
+	config: EventCalendarConfig<T>,
 	metrics: readonly ResolvedMetric<T>[],
 	zone: string,
 ): NormalizeResult<T> {

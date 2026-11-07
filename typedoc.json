@@ -5,5 +5,5 @@
 	"excludePrivate": true,
 	"excludeInternal": true,
 	"readme": "README.md",
-	"name": "@furnas-technology/timeline"
+	"name": "@furnas-technology/event-calendar"
 }

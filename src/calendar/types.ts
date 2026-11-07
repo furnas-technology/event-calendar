@@ -30,7 +30,7 @@ export interface Period {
  * A calendar that can divide time into weeks, months and years. Implement this to plug in a retail (4-4-5) or
  * fiscal calendar. Every method receives and returns calendar dates (see {@link CalendarDate}).
  *
- * Invariants the timeline relies on:
+ * Invariants the event calendar relies on:
  * - periods of one unit tile time without gaps or overlaps
  * - every month starts on a week start and ends on a week end (not required by Gregorian, see `weeksAlignToMonths`)
  */

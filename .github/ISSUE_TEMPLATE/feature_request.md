@@ -6,7 +6,7 @@ labels: enhancement
 ---
 
 **The problem**
-<!-- What are you trying to do that the timeline makes hard? -->
+<!-- What are you trying to do that the event calendar makes hard? -->
 
 **Proposed solution**
 

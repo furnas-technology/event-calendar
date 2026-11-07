@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>@furnas-technology/timeline — demo</title>
+		<title>@furnas-technology/event-calendar — demo</title>
 		<style>
 			:root {
 				font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -119,14 +119,11 @@
 				max-height: 140px;
 				overflow: auto;
 			}
-			#status {
-				color: #667;
-			}
 		</style>
 	</head>
 	<body>
 		<header>
-			<h1>@furnas-technology/timeline <span class="tag">demos</span></h1>
+			<h1>@furnas-technology/event-calendar <span class="tag">demos</span></h1>
 			<nav id="tabs" aria-label="Datasets"></nav>
 		</header>
 		<section id="about">
@@ -141,41 +138,19 @@
 				<select id="totals" aria-label="Totals depth"></select>
 			</fieldset>
 			<fieldset>
-				<legend>View</legend>
-				<button data-action="first" title="First month">⏮</button>
-				<button data-action="prev" title="Previous month">◀</button>
-				<button data-action="today">Today</button>
-				<button data-action="next" title="Next month">▶</button>
-				<button data-action="last" title="Last month">⏭</button>
-				<select id="months" aria-label="Visible months">
-					<option value="3">3 months</option>
-					<option value="6">6 months</option>
-					<option value="12">12 months</option>
-					<option value="24">24 months</option>
-					<option value="all">All</option>
-				</select>
-				<span id="status"></span>
-			</fieldset>
-			<fieldset>
 				<legend>Mode</legend>
 				<button data-toggle="yoy" aria-pressed="false">Year over year</button>
 				<button data-toggle="merge" aria-pressed="false">Merge overlapping</button>
 				<button data-toggle="editable" aria-pressed="false">Editable</button>
 			</fieldset>
 			<fieldset>
-				<legend>Display</legend>
-				<button data-action="zoomIn" title="Zoom in">A+</button>
-				<button data-action="zoomOut" title="Zoom out">A−</button>
-				<button data-action="zoomReset">Reset</button>
-				<button data-action="expand">Expand width</button>
-				<button data-action="fit">Fit width</button>
+				<legend>Options</legend>
 				<select id="lines" aria-label="Lines per bar">
 					<option value="1">1 line</option>
 					<option value="2">2 lines</option>
 					<option value="3">3 lines</option>
 				</select>
 				<select id="calendar" aria-label="Calendar"></select>
-				<button data-action="png">Save PNG</button>
 			</fieldset>
 		</div>
 		<div id="plan"></div>

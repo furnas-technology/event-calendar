@@ -1,5 +1,5 @@
 import { fitText, type MeasureText } from '../layout/measure';
-import type { BarLayout, GroupLayout, HeaderCell, TimelineLayout, TotalRowLayout } from '../layout/types';
+import type { BarLayout, EventCalendarLayout, GroupLayout, HeaderCell, TotalRowLayout } from '../layout/types';
 import { contrastText, darken, parseColor, type Rgba, toCss } from './color';
 import { pick, type Theme, type ThemeMetrics, themeMetrics } from './theme';
 
@@ -48,7 +48,12 @@ export interface DrawOptions {
 }
 
 /** Draw a complete layout. The context must already be scaled for device pixel ratio. */
-export function drawTimeline<T>(ctx: Context2D, layout: TimelineLayout<T>, theme: Theme, options: DrawOptions): void {
+export function drawEventCalendar<T>(
+	ctx: Context2D,
+	layout: EventCalendarLayout<T>,
+	theme: Theme,
+	options: DrawOptions,
+): void {
 	const tm = themeMetrics(theme);
 	const colors = theme.colors;
 	const painter = new Painter(ctx, options.measure, tm);
@@ -181,7 +186,7 @@ class Painter {
 
 function drawGroupBackgrounds<T>(
 	p: Painter,
-	layout: TimelineLayout<T>,
+	layout: EventCalendarLayout<T>,
 	group: GroupLayout<T>,
 	theme: Theme,
 	tm: ThemeMetrics,
@@ -216,7 +221,7 @@ function drawGroupBackgrounds<T>(
 	}
 }
 
-function drawGridLines<T>(p: Painter, layout: TimelineLayout<T>, theme: Theme, tm: ThemeMetrics): void {
+function drawGridLines<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme, tm: ThemeMetrics): void {
 	const colors = theme.colors;
 	const top = layout.headerHeight;
 	const bottom = layout.height - tm.padding;
@@ -287,7 +292,7 @@ function drawBar<T>(
 
 function drawTotals<T>(
 	p: Painter,
-	layout: TimelineLayout<T>,
+	layout: EventCalendarLayout<T>,
 	group: GroupLayout<T>,
 	theme: Theme,
 	tm: ThemeMetrics,
@@ -298,7 +303,7 @@ function drawTotals<T>(
 
 function drawTotalRow<T>(
 	p: Painter,
-	layout: TimelineLayout<T>,
+	layout: EventCalendarLayout<T>,
 	total: TotalRowLayout,
 	theme: Theme,
 	tm: ThemeMetrics,
@@ -353,7 +358,7 @@ function drawTotalRow<T>(
 	});
 }
 
-function drawHeader<T>(p: Painter, layout: TimelineLayout<T>, theme: Theme, tm: ThemeMetrics): void {
+function drawHeader<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme, tm: ThemeMetrics): void {
 	const colors = theme.colors;
 	p.fillRect(0, 0, layout.width, layout.headerHeight, colors.background);
 

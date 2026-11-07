@@ -27,21 +27,25 @@ export type {
 	AggregateOption,
 	AllocateOption,
 	BarOptions,
+	ControlLabels,
+	ControlsOptions,
+	EventCalendarConfig,
 	GroupLevel,
 	MetricDef,
 	MetricValues,
-	TimelineConfig,
 	TotalsOptions,
 	ViewMode,
 	ViewOptions,
 } from './config';
-export type { BarClickEvent, BarHoverEvent, BarMoveEvent, TimelineEventMap, Unsubscribe } from './events';
+export { EventCalendar } from './eventCalendar';
+export type { BarClickEvent, BarHoverEvent, BarMoveEvent, EventCalendarEventMap, Unsubscribe } from './events';
 export type { ResolvedMetric } from './layout/aggregate';
 export { computeLayout, type LayoutOptions, type PreparedData, prepareData } from './layout/layout';
 export type { MeasureText } from './layout/measure';
 export type {
 	Bar,
 	BarLayout,
+	EventCalendarLayout,
 	GridLine,
 	GroupInfo,
 	GroupLayout,
@@ -52,13 +56,12 @@ export type {
 	NormalizedRow,
 	PeriodColumn,
 	Rect,
-	TimelineLayout,
 	TotalLine,
 	TotalRowLayout,
 	ViewState,
 } from './layout/types';
 export type { ViewRequest } from './layout/view';
-export { type Context2D, type DrawOptions, drawTimeline } from './render/canvas';
+export { type Context2D, type DrawOptions, drawEventCalendar } from './render/canvas';
 export {
 	type DeepPartial,
 	defaultTheme,
@@ -68,4 +71,3 @@ export {
 	type ThemeMetrics,
 	themeMetrics,
 } from './render/theme';
-export { Timeline } from './timeline';

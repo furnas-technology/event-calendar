@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-`@furnas-technology/timeline` — framework-free, canvas-rendered hierarchical timeline (strict TypeScript, Luxon peer
-dependency). Public repo `furnas-technology/timeline`; demos at https://furnas-technology.github.io/timeline/.
+`@furnas-technology/event-calendar` — framework-free, canvas-rendered event calendar: Gantt-style bars under nested
+row headings (strict TypeScript, Luxon peer dependency). Public repo `furnas-technology/event-calendar`; demos at
+https://furnas-technology.github.io/event-calendar/. Renamed from `@furnas-technology/timeline` (0.1.0) in 0.2.0.
 
 ## Origin
 
@@ -16,7 +17,7 @@ An older abandoned attempt is in `~/Development/timeline-angular-2024` — refer
   fiscal calendars. Months must be numbered within their year so `(year, number)` advances by one per month.
 - `src/layout/` — pure, DOM-free: normalize → group tree → bars → lanes → totals → positions (`computeLayout`).
 - `src/render/` — theme + canvas renderer (draws a finished layout). `src/interaction/` — hit test, tooltip.
-- `src/timeline.ts` — `Timeline` class (DOM, ResizeObserver, DPR, navigation, pointer/drag events).
+- `src/eventCalendar.ts` — `EventCalendar` class (DOM, ResizeObserver, DPR, navigation, pointer/drag events).
 - `examples/` — Vite demo gallery (dance, advertising, hurricanes, contracts); `examples/data/README.md` has sources.
 
 ## Commands
@@ -46,6 +47,6 @@ Pushing, merging the version PR and publishing need the user's go-ahead.
 
 ## Open items
 
-- 0.1.0 is published to npm and GitHub Packages. The next release is the first via npm trusted publishing; check
-  that its Release run publishes without `MY_NPM_TOKEN`.
-- Dance-competitions demo: the user will decide which sorts and metrics it should show (currently placeholders).
+- The rename to `event-calendar` is not released yet. Follow "Renaming" in `RELEASING.md`: rename the GitHub repo,
+  publish 0.2.0 by hand (trusted publishing needs the package to exist), set up the trusted publisher, re-run Release
+  for GitHub Packages, deprecate `@furnas-technology/timeline`.
