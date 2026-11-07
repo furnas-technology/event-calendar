@@ -11,18 +11,18 @@ Formerly published as `@furnas-technology/timeline` (0.1.0 below).
   above the drawing. Labels can be replaced with `controls.labels`. The canvas now sits in a `.ft-event-calendar-viewport`
   scroll container inside `.ft-event-calendar`.
 - 1b299e2: Renamed from `@furnas-technology/timeline` to `@furnas-technology/event-calendar`. Update the install and imports:
-  
-  | Before | After |
-  | --- | --- |
-  | `@furnas-technology/timeline` | `@furnas-technology/event-calendar` |
-  | `Timeline` | `EventCalendar` |
-  | `TimelineConfig` | `EventCalendarConfig` |
-  | `TimelineEventMap` | `EventCalendarEventMap` |
-  | `TimelineLayout` | `EventCalendarLayout` |
-  | `drawTimeline` | `drawEventCalendar` |
-  | CSS classes `ft-timeline*` | `ft-event-calendar*` |
-  | Default Save PNG name `timeline.png` | `event-calendar.png` |
-  
+
+  | Before                               | After                               |
+  | ------------------------------------ | ----------------------------------- |
+  | `@furnas-technology/timeline`        | `@furnas-technology/event-calendar` |
+  | `Timeline`                           | `EventCalendar`                     |
+  | `TimelineConfig`                     | `EventCalendarConfig`               |
+  | `TimelineEventMap`                   | `EventCalendarEventMap`             |
+  | `TimelineLayout`                     | `EventCalendarLayout`               |
+  | `drawTimeline`                       | `drawEventCalendar`                 |
+  | CSS classes `ft-timeline*`           | `ft-event-calendar*`                |
+  | Default Save PNG name `timeline.png` | `event-calendar.png`                |
+
   Nothing else changed.
 
 ## 0.1.0
