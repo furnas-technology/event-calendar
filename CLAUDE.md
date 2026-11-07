@@ -47,6 +47,6 @@ Pushing, merging the version PR and publishing need the user's go-ahead.
 
 ## Open items
 
-- The rename to `event-calendar` is not released yet. Follow "Renaming" in `RELEASING.md`: rename the GitHub repo,
-  publish 0.2.0 by hand (trusted publishing needs the package to exist), set up the trusted publisher, re-run Release
-  for GitHub Packages, deprecate `@furnas-technology/timeline`.
+- 0.2.0 (the first `event-calendar` release) was published by hand, so it has no provenance. The next release is
+  the first CI publish via npm trusted publishing; check that its Release run publishes to npm with provenance, then
+  creates the tag and GitHub release and mirrors to GitHub Packages.
