@@ -57,8 +57,26 @@ function mount(extra: Partial<EventCalendarConfig<Row>> = {}): EventCalendar<Row
 	return t;
 }
 
-function pointer(target: Element, type: string, x: number, y: number): void {
-	target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, button: 0, bubbles: true }));
+function pointer(target: Element, type: string, x: number, y: number, pointerType = ''): void {
+	target.dispatchEvent(
+		new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, button: 0, bubbles: true, pointerType }),
+	);
+}
+
+const viewportOf = (t: EventCalendar<Row>) => t.element.querySelector('.ft-event-calendar-viewport') as HTMLElement;
+const tooltipOf = (t: EventCalendar<Row>) => t.element.querySelector('.ft-event-calendar-tooltip') as HTMLElement;
+
+/** Scroll the calendar's viewport as a user would (jsdom stores scrollLeft without layout). */
+function scrollTo(t: EventCalendar<Row>, left: number): void {
+	const viewport = viewportOf(t);
+	viewport.scrollLeft = left;
+	viewport.dispatchEvent(new Event('scroll'));
+}
+
+function barOf(t: EventCalendar<Row>, id: string): BarLayout<Row> {
+	const bar = t.getLayout()?.bars.find((b) => b.bar.rows[0]?.id === id);
+	if (!bar) throw new Error(`bar ${id} is not laid out`);
+	return bar;
 }
 
 const center = (b: BarLayout<Row>) => ({ x: b.rect.x + b.rect.width / 2, y: b.rect.y + b.rect.height / 2 });
@@ -67,9 +85,11 @@ describe('EventCalendar', () => {
 	it('mounts a canvas, tooltip and badge into the container and renders synchronously', () => {
 		const t = mount();
 		expect(t.element.querySelector('canvas')).toBe(t.canvas);
-		// viewport (scroll container) holding the canvas, tooltip and badge; no controls unless asked for
-		expect(t.element.querySelectorAll('div')).toHaveLength(3);
-		expect(t.element.querySelector('.ft-event-calendar-viewport canvas')).toBe(t.canvas);
+		// viewport (scroll container) > track > canvas, plus the tooltip and badge; no controls unless asked for
+		expect(t.element.querySelectorAll('div')).toHaveLength(4);
+		expect(t.element.querySelector('.ft-event-calendar-viewport > .ft-event-calendar-track > canvas')).toBe(t.canvas);
+		expect(t.element.querySelector('.ft-event-calendar-viewport .ft-event-calendar-tooltip')).toBeNull();
+		expect(t.canvas.style.position).toBe('sticky');
 		expect(t.element.querySelector('.ft-event-calendar-controls')).toBeNull();
 		const layout = t.getLayout();
 		expect(layout?.bars).toHaveLength(3);
@@ -179,15 +199,216 @@ describe('EventCalendar', () => {
 		expect(t.getLayout()?.height).toBe(h);
 	});
 
-	it('expands and fits the width', () => {
+	it('expands and fits the width of the time grid', () => {
 		const t = mount();
-		const w = t.getLayout()?.width ?? 0;
+		const before = t.getLayout();
+		const w = before?.width ?? 0;
+		const gw = before?.gridWidth ?? 0;
 		t.expandWidth(2);
 		t.render();
-		expect(t.getLayout()?.width).toBe(w * 2);
+		expect(t.getLayout()?.gridWidth).toBeCloseTo(gw * 2, 6);
+		expect(t.getLayout()?.columnWidths).toEqual(before?.columnWidths);
 		t.fitWidth();
 		t.render();
 		expect(t.getLayout()?.width).toBe(w);
+	});
+
+	describe('scrolling', () => {
+		it('scrolls through every month; navigation moves the scroll position', () => {
+			const t = mount({ view: { months: 2 }, calendar: 'gregorian' });
+			const layout = t.getLayout();
+			if (!layout?.range) throw new Error('expected a scrollable range');
+			expect(layout.range.start.toISODate()).toBe('2024-01-01');
+			expect(layout.range.end.toISODate()).toBe('2024-06-30');
+			expect(t.canvas.style.width).toBe('800px');
+			expect(layout.width).toBeGreaterThan(800);
+			t.next();
+			expect(viewportOf(t).scrollLeft).toBeCloseTo(31 * layout.dayWidth, 6);
+			expect(t.getViewState()?.start.toISODate()).toBe('2024-02-01');
+			// Previous from mid-month goes to the start of that month.
+			scrollTo(t, 40 * layout.dayWidth);
+			expect(t.getViewState()?.start.toISODate()).toBe('2024-02-10');
+			t.prev();
+			expect(t.getViewState()?.start.toISODate()).toBe('2024-02-01');
+		});
+
+		it('emits viewchange as the user scrolls and keeps the position across re-renders', () => {
+			const t = mount({ view: { months: 2 } });
+			const offsets: number[] = [];
+			t.on('viewchange', (v) => offsets.push(v.offset));
+			const dayWidth = t.getLayout()?.dayWidth ?? 0;
+			scrollTo(t, 70 * dayWidth);
+			expect(offsets).toEqual([2]);
+			t.setData([...rows]);
+			t.render();
+			expect(viewportOf(t).scrollLeft).toBeCloseTo(70 * dayWidth, 6);
+		});
+
+		it('keeps the old window behaviour with range: window', () => {
+			const t = mount({ view: { months: 2, range: 'window' } });
+			expect(t.getLayout()?.periodColumns).toHaveLength(2);
+			t.next();
+			t.render();
+			expect(t.getLayout()?.view.offset).toBe(1);
+			expect(t.getLayout()?.periodColumns).toHaveLength(2);
+		});
+
+		it('maps pointer positions through the scroll, except over fixed headings', () => {
+			const hitAfterScroll = (extra: Partial<EventCalendarConfig<Row>>) => {
+				const t = mount({ view: { months: 2 }, ...extra });
+				// March is listed once it is in view; then scroll bar 2 to just right of the left edge, under the headings.
+				t.next();
+				const bar = barOf(t, '2');
+				const onClick = vi.fn();
+				t.on('click', onClick);
+				scrollTo(t, bar.rect.x - 10);
+				// Other months are in view now, so the rows may have moved: read the bar again.
+				const moved = barOf(t, '2');
+				const y = moved.rect.y + moved.rect.height / 2;
+				pointer(t.canvas, 'pointerdown', 15, y);
+				pointer(t.canvas, 'pointerup', 15, y);
+				return onClick.mock.calls.length;
+			};
+			expect(hitAfterScroll({ fixedRowHeadings: false })).toBe(1);
+			expect(hitAfterScroll({ fixedRowHeadings: true })).toBe(0);
+			// 'auto' (default): jsdom's window is 1024px wide, at least the 768px default breakpoint.
+			expect(hitAfterScroll({})).toBe(0);
+			expect(hitAfterScroll({ fixedRowHeadingsMinWidth: 1200 })).toBe(1);
+		});
+
+		it('follows a matchMedia breakpoint for fixedRowHeadings: auto', () => {
+			const listeners: (() => void)[] = [];
+			const query = {
+				matches: false,
+				addEventListener: (_: string, l: () => void) => listeners.push(l),
+				removeEventListener: () => {},
+			};
+			const other = { matches: false, addEventListener: () => {}, removeEventListener: () => {} };
+			const matchMedia = vi.fn((q: string) => (q.startsWith('(min-width') ? query : other));
+			vi.stubGlobal('matchMedia', matchMedia);
+			try {
+				const t = mount({ view: { months: 2 } });
+				expect(matchMedia).toHaveBeenCalledWith('(min-width: 768px)');
+				t.next();
+				const bar = barOf(t, '2');
+				const onClick = vi.fn();
+				t.on('click', onClick);
+				scrollTo(t, bar.rect.x - 10);
+				// Other months are in view now, so the rows may have moved: read the bar again.
+				const moved = barOf(t, '2');
+				const y = moved.rect.y + moved.rect.height / 2;
+				const click = () => {
+					pointer(t.canvas, 'pointerdown', 15, y);
+					pointer(t.canvas, 'pointerup', 15, y);
+				};
+				click();
+				expect(onClick).toHaveBeenCalledTimes(1); // narrow window: headings scroll
+				query.matches = true;
+				for (const l of listeners) l();
+				t.render();
+				scrollTo(t, bar.rect.x - 10);
+				click();
+				expect(onClick).toHaveBeenCalledTimes(1); // wide window: fixed headings cover x = 15
+			} finally {
+				vi.unstubAllGlobals();
+			}
+		});
+
+		it('pans with a mouse drag on the background without clicking', () => {
+			const t = mount({ view: { months: 2 } });
+			const onClick = vi.fn();
+			t.on('click', onClick);
+			const layout = t.getLayout();
+			if (!layout) throw new Error('no layout');
+			const y = layout.headerHeight / 2; // the time axis: no bar there
+			pointer(t.canvas, 'pointerdown', 400, y, 'mouse');
+			pointer(t.canvas, 'pointermove', 300, y, 'mouse');
+			pointer(t.canvas, 'pointerup', 300, y, 'mouse');
+			expect(viewportOf(t).scrollLeft).toBe(100);
+			expect(onClick).not.toHaveBeenCalled();
+		});
+
+		it('lists only the groups with rows in the months in view, keeping the grid in place', () => {
+			const t = mount({ view: { months: 2 } });
+			const keys = () => t.getLayout()?.root.children.map((g) => g.key);
+			const gridX = t.getLayout()?.gridX;
+			expect(keys()).toEqual(['A']);
+			t.next(); // Feb–Mar: bar 2 starts 4 Mar
+			expect(keys()).toEqual(['B']);
+			expect(t.getLayout()?.gridX).toBe(gridX);
+			t.last();
+			expect(keys()).toEqual(['B']);
+			expect(t.getLayout()?.bars.map((b) => b.bar.rows[0]?.id)).toEqual(['3']);
+			// Totals cover the listed months only (the grand total would repeat B's, so B's sub-total shows).
+			expect(t.getLayout()?.root.children[0]?.total?.lines[0]?.formatted).toBe('3,000');
+			t.setConfig({ view: { months: 2, hideEmptyGroups: false } });
+			t.render();
+			expect(keys()).toEqual(['A', 'B']);
+		});
+
+		it('uses a scroll box with maxHeight', () => {
+			const t = mount({ maxHeight: 300 });
+			expect(viewportOf(t).style.maxHeight).toBe('300px');
+			expect(viewportOf(t).style.overflowY).toBe('auto');
+			t.setConfig({ maxHeight: '70vh' });
+			t.render();
+			expect(viewportOf(t).style.maxHeight).toBe('70vh');
+		});
+	});
+
+	describe('pinned tooltip', () => {
+		const tap = (t: EventCalendar<Row>, bar: BarLayout<Row>) => {
+			const { x, y } = center(bar);
+			pointer(t.canvas, 'pointerdown', x, y, 'touch');
+			pointer(t.canvas, 'pointerup', x, y, 'touch');
+		};
+
+		it('opens on tap, survives hover changes and closes on Escape or a press outside', () => {
+			const t = mount();
+			const bar = t.getLayout()?.bars[0];
+			if (!bar) throw new Error('no bar');
+			tap(t, bar);
+			const tip = tooltipOf(t);
+			expect(tip.style.visibility).toBe('visible');
+			expect(tip.style.pointerEvents).toBe('auto');
+			expect(tip.style.position).toBe('fixed');
+			expect(tip.style.width).toBe('max-content');
+			pointer(t.canvas, 'pointermove', 1, 1);
+			expect(tip.style.visibility).toBe('visible');
+
+			document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+			expect(tip.style.visibility).toBe('hidden');
+
+			tap(t, bar);
+			expect(tip.style.visibility).toBe('visible');
+			pointer(tip, 'pointerdown', 0, 0);
+			expect(tip.style.visibility).toBe('visible'); // a press inside keeps it open
+			pointer(document.body, 'pointerdown', 0, 0);
+			expect(tip.style.visibility).toBe('hidden');
+		});
+
+		it('toggles on the same bar and stays closed with tooltipOnClick: false', () => {
+			const t = mount();
+			const bar = t.getLayout()?.bars[0];
+			if (!bar) throw new Error('no bar');
+			tap(t, bar);
+			tap(t, bar);
+			expect(tooltipOf(t).style.visibility).toBe('hidden');
+			t.setConfig({ tooltipOnClick: false });
+			t.render();
+			tap(t, bar);
+			expect(tooltipOf(t).style.visibility).toBe('hidden');
+		});
+
+		it('fits the window: max size from the visible area, measured at the origin', () => {
+			const t = mount();
+			const bar = t.getLayout()?.bars[0];
+			if (!bar) throw new Error('no bar');
+			tap(t, bar);
+			const tip = tooltipOf(t);
+			expect(tip.style.maxWidth).toBe(`${window.innerWidth - 8}px`);
+			expect(tip.style.whiteSpace).toBe('normal');
+		});
 	});
 
 	it('destroy removes the element and stops events', () => {

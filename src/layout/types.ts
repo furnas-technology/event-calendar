@@ -173,7 +173,12 @@ export interface EventCalendarLayout<T> {
 	readonly gridLines: readonly GridLine[];
 	readonly periodColumns: readonly PeriodColumn[];
 	readonly legend: readonly LegendItem[];
+	/** The window requested when this layout was computed. `EventCalendar.getViewState()` reports what is visible now. */
 	readonly view: ViewState;
+	/** First and last laid-out dates (continuous mode); `null` in YoY mode and when empty. */
+	readonly range: { readonly start: CalendarDate; readonly end: CalendarDate } | null;
+	/** Months whose rows are listed and totalled (continuous mode); `null` in YoY mode and when empty. */
+	readonly shown: { readonly start: CalendarDate; readonly end: CalendarDate } | null;
 	/** Pixels per day (continuous mode); 0 in YoY mode. */
 	readonly dayWidth: number;
 	readonly calendar: TimeCalendar;

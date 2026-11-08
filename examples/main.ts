@@ -13,6 +13,7 @@ const presetSelect = $<HTMLSelectElement>('preset');
 const totalsSelect = $<HTMLSelectElement>('totals');
 const calendarSelect = $<HTMLSelectElement>('calendar');
 const linesSelect = $<HTMLSelectElement>('lines');
+const headingsSelect = $<HTMLSelectElement>('headings');
 
 let current: DemoHandle | null = null;
 
@@ -67,6 +68,7 @@ function show(id: string): void {
 	for (const b of document.querySelectorAll<HTMLButtonElement>('[data-toggle]'))
 		b.setAttribute('aria-pressed', 'false');
 	linesSelect.value = '1';
+	headingsSelect.value = 'auto';
 	setOptions(
 		calendarSelect,
 		demo.calendars.map((c) => c.label),
@@ -134,5 +136,9 @@ presetSelect.addEventListener('change', () => {
 totalsSelect.addEventListener('change', () => current?.setTotalsDepth(Number(totalsSelect.value) - 1));
 linesSelect.addEventListener('change', () => current?.setBarLines(Number(linesSelect.value)));
 calendarSelect.addEventListener('change', () => current?.setCalendar(Number(calendarSelect.value)));
+headingsSelect.addEventListener('change', () => {
+	const value = headingsSelect.value;
+	current?.setFixedHeadings(value === 'auto' ? 'auto' : value === 'fixed');
+});
 
 show(location.hash.slice(1));

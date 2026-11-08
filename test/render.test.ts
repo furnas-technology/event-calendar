@@ -2,7 +2,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import { describe, expect, it } from 'vitest';
 import type { EventCalendarConfig } from '../src/config';
 import { computeLayout, prepareData } from '../src/layout/layout';
-import { type Context2D, drawEventCalendar } from '../src/render/canvas';
+import { type Context2D, type DrawViewport, drawEventCalendar } from '../src/render/canvas';
 import { contrastText, parseColor } from '../src/render/color';
 import { defaultTheme, mergeTheme } from '../src/render/theme';
 import { type FlightVehicle, generateFlightVehicles } from './fixtures/flightVehicles';
@@ -84,6 +84,62 @@ describe('canvas renderer', () => {
 		});
 		expect(layout.empty).toBe(true);
 		expect(() => drawEventCalendar(ctx as unknown as Context2D, layout, defaultTheme, { measure })).not.toThrow();
+	});
+});
+
+describe('scrolled viewport', () => {
+	function scene(viewport: DrawViewport | null) {
+		const canvas = createCanvas(10, 10);
+		const ctx = canvas.getContext('2d');
+		const measure = (text: string, font: string) => {
+			ctx.font = font;
+			return ctx.measureText(text).width;
+		};
+		const layout = computeLayout(prepareData(generateFlightVehicles(), config), {
+			width: 900,
+			measureText: measure,
+			theme: defaultTheme,
+			view: { mode: 'continuous', start: null, months: 3 },
+			range: 'all',
+		});
+		canvas.width = viewport ? viewport.width : layout.width;
+		canvas.height = viewport ? viewport.height : layout.height;
+		drawEventCalendar(ctx as unknown as Context2D, layout, defaultTheme, { measure, viewport });
+		const pixel = (x: number, y: number) => [...ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data];
+		return { layout, pixel };
+	}
+
+	it('keeps fixed headings in place while the grid scrolls', () => {
+		const full = scene(null);
+		const { layout } = full;
+		expect(layout.width).toBeGreaterThan(900);
+		const bar = layout.bars.find((b) => b.rect.width > 30 && b.rect.x > layout.gridX + 400);
+		if (!bar) throw new Error('expected a bar right of the first screen');
+		const scroll = Math.round(bar.rect.x - layout.gridX - 100);
+		const vp = { x: scroll, y: 0, width: 900, height: layout.height, frozenX: layout.gridX, frozenY: 0 };
+		const scrolled = scene(vp);
+		// A row heading is where it was ...
+		const heading = layout.root.children[0]?.headerRect;
+		if (!heading) throw new Error('expected a heading');
+		const hx = heading.x + 2;
+		const hy = heading.y + heading.height - 2;
+		expect(scrolled.pixel(hx, hy)).toEqual(full.pixel(hx, hy));
+		// ... and the bar moved left by the scroll distance.
+		const by = bar.rect.y + bar.rect.height - 3;
+		expect(scrolled.pixel(bar.rect.x - scroll + 2, by).slice(0, 3)).toEqual([255, 0, 0]);
+	});
+
+	it('scrolls the headings away when they are not fixed', () => {
+		const { layout } = scene(null);
+		const bar = layout.bars.find((b) => b.rect.width > 30 && b.rect.x > layout.gridX + 400);
+		if (!bar) throw new Error('expected a bar right of the first screen');
+		// Scroll the bar into where the headings were: with scrolling headings it shows there.
+		const scroll = Math.round(bar.rect.x - 20);
+		const by = bar.rect.y + bar.rect.height - 3;
+		const loose = scene({ x: scroll, y: 0, width: 900, height: layout.height, frozenX: 0, frozenY: 0 });
+		expect(loose.pixel(22, by).slice(0, 3)).toEqual([255, 0, 0]);
+		const fixed = scene({ x: scroll, y: 0, width: 900, height: layout.height, frozenX: layout.gridX, frozenY: 0 });
+		expect(fixed.pixel(22, by).slice(0, 3)).not.toEqual([255, 0, 0]);
 	});
 });
 

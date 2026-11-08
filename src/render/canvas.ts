@@ -1,5 +1,5 @@
 import { fitText, type MeasureText } from '../layout/measure';
-import type { BarLayout, EventCalendarLayout, GroupLayout, HeaderCell, TotalRowLayout } from '../layout/types';
+import type { BarLayout, EventCalendarLayout, GroupLayout, HeaderCell, Rect, TotalRowLayout } from '../layout/types';
 import { contrastText, darken, parseColor, type Rgba, toCss } from './color';
 import { pick, type Theme, type ThemeMetrics, themeMetrics } from './theme';
 
@@ -23,6 +23,7 @@ export type Context2D = Pick<
 	| 'measureText'
 	| 'drawImage'
 	| 'setTransform'
+	| 'translate'
 	| 'fillStyle'
 	| 'strokeStyle'
 	| 'lineWidth'
@@ -45,9 +46,25 @@ export interface DrawOptions {
 	/** Returns a loaded image for an icon URL, or null if not (yet) available. */
 	getImage?: (url: string) => CanvasImageSource | null;
 	emptyText?: string;
+	/** Draw only a scrolled part of the layout into a canvas of the viewport's size (see {@link DrawViewport}). */
+	viewport?: DrawViewport | null;
 }
 
-/** Draw a complete layout. The context must already be scaled for device pixel ratio. */
+/**
+ * A scrolled view of the layout. The canvas is `width` × `height` CSS pixels; layout point `(x + cx, y + cy)` is drawn
+ * at canvas point `(cx, cy)`, except that the first `frozenX` columns (the row headings) do not scroll horizontally and
+ * the first `frozenY` rows (the time axis) do not scroll vertically.
+ */
+export interface DrawViewport {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	frozenX: number;
+	frozenY: number;
+}
+
+/** Draw a complete layout (or, with `options.viewport`, its visible part). The context must already be scaled for device pixel ratio. */
 export function drawEventCalendar<T>(
 	ctx: Context2D,
 	layout: EventCalendarLayout<T>,
@@ -57,16 +74,19 @@ export function drawEventCalendar<T>(
 	const tm = themeMetrics(theme);
 	const colors = theme.colors;
 	const painter = new Painter(ctx, options.measure, tm);
+	const vp = options.viewport ?? null;
+	const width = vp ? vp.width : layout.width;
+	const height = vp ? vp.height : layout.height;
 
 	ctx.save();
-	ctx.clearRect(0, 0, layout.width, layout.height);
+	ctx.clearRect(0, 0, width, height);
 	ctx.fillStyle = colors.background;
-	ctx.fillRect(0, 0, layout.width, layout.height);
+	ctx.fillRect(0, 0, width, height);
 
 	if (layout.empty) {
 		painter.text(
 			options.emptyText ?? 'No data to display',
-			layout.width / 2,
+			width / 2,
 			layout.headerHeight + tm.laneHeight,
 			'center',
 			tm.rowFont,
@@ -76,31 +96,95 @@ export function drawEventCalendar<T>(
 		return;
 	}
 
-	drawGroupBackgrounds(painter, layout, layout.root, theme, tm);
-	drawGridLines(painter, layout, theme, tm);
+	if (!vp) {
+		drawScene(painter, layout, theme, tm, options, { x: 0, y: 0, width: layout.width, height: layout.height });
+		ctx.restore();
+		return;
+	}
+
+	// Body, headings column, time axis, corner: each clipped to its part of the canvas and scrolled on its own axes.
+	const fx = Math.max(0, Math.min(vp.frozenX, width));
+	const fy = Math.max(0, Math.min(vp.frozenY, height));
+	const parts = [
+		{ cx: fx, cy: fy, cw: width - fx, ch: height - fy, sx: vp.x, sy: vp.y },
+		{ cx: 0, cy: fy, cw: fx, ch: height - fy, sx: 0, sy: vp.y },
+		{ cx: fx, cy: 0, cw: width - fx, ch: fy, sx: vp.x, sy: 0 },
+		{ cx: 0, cy: 0, cw: fx, ch: fy, sx: 0, sy: 0 },
+	];
+	for (const part of parts) {
+		if (part.cw <= 0 || part.ch <= 0) continue;
+		ctx.save();
+		ctx.beginPath();
+		ctx.rect(part.cx, part.cy, part.cw, part.ch);
+		ctx.clip();
+		ctx.translate(-part.sx, -part.sy);
+		drawScene(painter, layout, theme, tm, options, {
+			x: part.cx + part.sx,
+			y: part.cy + part.sy,
+			width: part.cw,
+			height: part.ch,
+		});
+		ctx.restore();
+	}
+	// Soft shadow where scrolled content passes under the frozen headings / time axis.
+	if (fx > 0 && vp.x > 0) {
+		[0.16, 0.08, 0.04].forEach((alpha, i) => {
+			painter.line(fx + i, fy, fx + i, height, `rgba(0, 0, 0, ${alpha})`);
+		});
+	}
+	if (fy > 0 && vp.y > 0) {
+		[0.16, 0.08, 0.04].forEach((alpha, i) => {
+			painter.line(0, fy + i, width, fy + i, `rgba(0, 0, 0, ${alpha})`);
+		});
+	}
+	ctx.restore();
+}
+
+/** Everything that intersects `view` (a rect in layout coordinates), drawn in layout coordinates. */
+function drawScene<T>(
+	painter: Painter,
+	layout: EventCalendarLayout<T>,
+	theme: Theme,
+	tm: ThemeMetrics,
+	options: DrawOptions,
+	view: Rect,
+): void {
+	painter.fillRect(view.x, view.y, view.width, view.height, theme.colors.background);
+	drawGroupBackgrounds(painter, layout, layout.root, theme, tm, view);
+	drawGridLines(painter, layout, theme, tm, view);
 
 	const dragId = options.drag?.barId ?? null;
 	for (const bar of layout.bars) {
 		if (bar.bar.id === dragId) continue;
 		const dx = options.offsets?.get(bar.bar.id) ?? 0;
-		drawBar(painter, bar, theme, tm, options, dx, bar.bar.id === options.hoverBarId);
+		if (!intersects({ ...bar.rect, x: bar.rect.x + dx }, view)) continue;
+		drawBar(painter, bar, theme, tm, options, dx, bar.bar.id === options.hoverBarId, view);
 	}
 
-	drawTotals(painter, layout, layout.root, theme, tm);
-	drawHeader(painter, layout, theme, tm);
+	drawTotals(painter, layout, layout.root, theme, tm, view);
+	if (view.y < layout.headerHeight) drawHeader(painter, layout, theme, tm, view);
 
 	if (dragId && options.drag) {
 		const dragged = layout.bars.find((b) => b.bar.id === dragId);
 		if (dragged) {
+			const { ctx } = painter;
 			ctx.save();
 			ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
 			ctx.shadowBlur = 6;
 			ctx.shadowOffsetY = 2;
-			drawBar(painter, dragged, theme, tm, options, options.drag.dx, true);
+			drawBar(painter, dragged, theme, tm, options, options.drag.dx, true, view);
 			ctx.restore();
 		}
 	}
-	ctx.restore();
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+	return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
+}
+
+/** Left edge of the visible time grid. */
+function visibleGridLeft<T>(layout: EventCalendarLayout<T>, view: Rect): number {
+	return Math.max(layout.gridX, view.x);
 }
 
 class Painter {
@@ -190,7 +274,9 @@ function drawGroupBackgrounds<T>(
 	group: GroupLayout<T>,
 	theme: Theme,
 	tm: ThemeMetrics,
+	view: Rect,
 ): void {
+	if (group.rect.y > view.y + view.height || group.rect.y + group.rect.height < view.y) return;
 	const colors = theme.colors;
 	const band = group.band === 'odd' ? colors.bandOdd : colors.bandEven;
 	const bottom = group.rect.y + group.rect.height - (group.total?.rect.height ?? 0);
@@ -198,10 +284,13 @@ function drawGroupBackgrounds<T>(
 	if (group.level >= 0) {
 		const h = group.headerRect;
 		p.fillRect(h.x, h.y, h.width, bottom - h.y, band);
+		// Keep the heading at the top of the visible part of a tall group.
+		const labelHeight = tm.padding * 2 + tm.rowFontSize;
+		const top = Math.max(h.y, Math.min(view.y, bottom - labelHeight));
 		p.text(
 			group.label,
 			h.x + tm.padding,
-			h.y + tm.padding + tm.rowFontSize,
+			top + tm.padding + tm.rowFontSize,
 			'left',
 			tm.rowFont,
 			colors.rowHeaderText,
@@ -209,9 +298,10 @@ function drawGroupBackgrounds<T>(
 		);
 	}
 	for (const lane of group.lanes) {
+		if (lane.rect.y > view.y + view.height || lane.rect.y + lane.rect.height < view.y) continue;
 		p.fillRect(layout.gridX, lane.rect.y, layout.gridWidth, lane.rect.height, band);
 	}
-	for (const child of group.children) drawGroupBackgrounds(p, layout, child, theme, tm);
+	for (const child of group.children) drawGroupBackgrounds(p, layout, child, theme, tm, view);
 
 	if (group.level >= 0) {
 		const lineColor = pick(colors.rowLines, group.level, '#999');
@@ -221,11 +311,19 @@ function drawGroupBackgrounds<T>(
 	}
 }
 
-function drawGridLines<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme, tm: ThemeMetrics): void {
+function drawGridLines<T>(
+	p: Painter,
+	layout: EventCalendarLayout<T>,
+	theme: Theme,
+	tm: ThemeMetrics,
+	view: Rect,
+): void {
 	const colors = theme.colors;
-	const top = layout.headerHeight;
-	const bottom = layout.height - tm.padding;
+	const top = Math.max(layout.headerHeight, view.y - 1);
+	const bottom = Math.min(layout.height - tm.padding, view.y + view.height + 1);
+	if (bottom <= top) return;
 	for (const line of layout.gridLines) {
+		if (line.x < view.x - 1 || line.x > view.x + view.width + 1) continue;
 		const color =
 			line.kind === 'week' ? colors.gridWeek : line.kind === 'month' ? colors.gridMonth : colors.gridBoundary;
 		p.line(line.x, top, line.x, bottom, color);
@@ -240,6 +338,7 @@ function drawBar<T>(
 	options: DrawOptions,
 	dx: number,
 	highlight: boolean,
+	view: Rect,
 ): void {
 	const { ctx } = p;
 	const { rect } = layout;
@@ -261,9 +360,16 @@ function drawBar<T>(
 	}
 
 	const textColor = contrastText(rgba, theme.colors.barTextDark, theme.colors.barTextLight);
-	const textX = x + tm.padding + 1;
-	const maxWidth = rect.width - tm.padding * 2 - 1;
+	let textX = x + tm.padding + 1;
+	let maxWidth = rect.width - tm.padding * 2 - 1;
 	if (maxWidth < 6) return;
+	// A bar that starts left of the visible grid keeps its label in view (while there is room for some of it).
+	const stickyX = view.x + tm.padding + 1;
+	const stickyWidth = x + rect.width - tm.padding - stickyX;
+	if (stickyX > textX && stickyWidth >= 6) {
+		textX = stickyX;
+		maxWidth = stickyWidth;
+	}
 
 	ctx.save();
 	ctx.beginPath();
@@ -296,9 +402,11 @@ function drawTotals<T>(
 	group: GroupLayout<T>,
 	theme: Theme,
 	tm: ThemeMetrics,
+	view: Rect,
 ): void {
-	for (const child of group.children) drawTotals(p, layout, child, theme, tm);
-	if (group.total) drawTotalRow(p, layout, group.total, theme, tm);
+	if (group.rect.y > view.y + view.height || group.rect.y + group.rect.height < view.y) return;
+	for (const child of group.children) drawTotals(p, layout, child, theme, tm, view);
+	if (group.total && intersects(group.total.rect, view)) drawTotalRow(p, layout, group.total, theme, tm, view);
 }
 
 function drawTotalRow<T>(
@@ -307,6 +415,7 @@ function drawTotalRow<T>(
 	total: TotalRowLayout,
 	theme: Theme,
 	tm: ThemeMetrics,
+	view: Rect,
 ): void {
 	const colors = theme.colors;
 	const { rect, headerRect } = total;
@@ -344,7 +453,7 @@ function drawTotalRow<T>(
 		// Period cells, centred under each month.
 		line.formattedPeriods.forEach((text, col) => {
 			const column = layout.periodColumns[col];
-			if (!column || !text) return;
+			if (!column || !text || column.x > view.x + view.width || column.x + column.width < view.x) return;
 			p.text(
 				text,
 				column.x + column.width / 2,
@@ -358,16 +467,21 @@ function drawTotalRow<T>(
 	});
 }
 
-function drawHeader<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme, tm: ThemeMetrics): void {
+function drawHeader<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme, tm: ThemeMetrics, view: Rect): void {
 	const colors = theme.colors;
-	p.fillRect(0, 0, layout.width, layout.headerHeight, colors.background);
+	p.fillRect(view.x, 0, view.width, layout.headerHeight, colors.background);
 
-	for (const cell of layout.headerCells) drawHeaderCell(p, cell, theme, tm);
+	const left = visibleGridLeft(layout, view);
+	const right = view.x + view.width;
+	for (const cell of layout.headerCells) {
+		if (cell.x > right || cell.x + cell.width < view.x) continue;
+		drawHeaderCell(p, cell, theme, tm, left, right);
+	}
 
 	if (layout.legend.length > 0) {
 		const y = tm.padding + tm.axisFontSize + 1;
 		const size = Math.ceil(tm.axisFontSize * 0.8);
-		let x = layout.gridX + 2;
+		let x = left + 2;
 		for (const item of layout.legend) {
 			p.fillRect(x, y - size, size, size, item.color);
 			x += size + 3;
@@ -384,10 +498,23 @@ function drawHeader<T>(p: Painter, layout: EventCalendarLayout<T>, theme: Theme,
 	);
 }
 
-function drawHeaderCell(p: Painter, cell: HeaderCell, theme: Theme, tm: ThemeMetrics): void {
+/** Draws a header cell; a centred label moves into the visible part of its cell (`left`…`right`), staying inside it. */
+function drawHeaderCell(
+	p: Painter,
+	cell: HeaderCell,
+	theme: Theme,
+	tm: ThemeMetrics,
+	left: number,
+	right: number,
+): void {
 	const colors = theme.colors;
-	const x =
+	let x =
 		cell.align === 'center' ? cell.x + cell.width / 2 : cell.align === 'left' ? cell.x + 2 : cell.x + cell.width - 2;
+	if (cell.align === 'center' && cell.text && (cell.x < left || cell.x + cell.width > right)) {
+		const half = p.measure(cell.text, tm.axisFont) / 2 + 2;
+		const visibleCentre = (Math.max(cell.x, left) + Math.min(cell.x + cell.width, right)) / 2;
+		x = Math.max(cell.x + half, Math.min(visibleCentre, cell.x + cell.width - half));
+	}
 	p.text(cell.text, x, cell.y, cell.align, tm.axisFont, colors.axisText);
 	if (!cell.bracket || cell.width < 6) return;
 	const top = cell.y - tm.axisFontSize;

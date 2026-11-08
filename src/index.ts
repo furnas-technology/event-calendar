@@ -60,8 +60,8 @@ export type {
 	TotalRowLayout,
 	ViewState,
 } from './layout/types';
-export type { ViewRequest } from './layout/view';
-export { type Context2D, type DrawOptions, drawEventCalendar } from './render/canvas';
+export { type ViewRequest, visibleViewState } from './layout/view';
+export { type Context2D, type DrawOptions, type DrawViewport, drawEventCalendar } from './render/canvas';
 export {
 	type DeepPartial,
 	defaultTheme,

@@ -55,6 +55,8 @@ export interface DemoHandle {
 	setEditable(on: boolean): void;
 	setCalendar(index: number): void;
 	setBarLines(lines: number): void;
+	/** `EventCalendarConfig.fixedRowHeadings`. */
+	setFixedHeadings(value: boolean | 'auto'): void;
 	onLog(listener: (message: string) => void): void;
 	destroy(): void;
 }
@@ -100,7 +102,7 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 			};
 			const calendar = new EventCalendar<T>(
 				host,
-				{ controls: viewControls, ...def.config, groupBy: preset.groupBy },
+				{ controls: viewControls, maxHeight: '80vh', ...def.config, groupBy: preset.groupBy },
 				display(),
 			);
 			const setTotalsDepth = (depth: number | 'none') => {
@@ -158,6 +160,9 @@ export function defineDemo<T>(def: DemoDefinition<T>): Demo {
 				},
 				setBarLines(lines) {
 					calendar.setConfig({ theme: { barLines: lines } });
+				},
+				setFixedHeadings(value) {
+					calendar.setConfig({ fixedRowHeadings: value });
 				},
 				onLog(listener) {
 					logListeners.push(listener);

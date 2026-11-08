@@ -100,23 +100,27 @@ onBeforeUnmount(() => calendar?.destroy());
 
 ## Configuration
 
-| Option         | Type                                              | Default        |                                                               |
-| -------------- | ------------------------------------------------- | -------------- | ------------------------------------------------------------- |
-| `start`, `end` | `(row) => DateInput`                              | —              | Inclusive date range of a row.                                |
-| `groupBy`      | `GroupLevel<T>[]`                                 | —              | Row hierarchy, outermost first. May be empty.                 |
-| `metrics`      | `MetricDef<T>[]`                                  | `[]`           | Numeric values to aggregate and total.                        |
-| `totals`       | `TotalsOptions`                                   | —              | Grand total, per-month cells, which metrics.                  |
-| `bars`         | `BarOptions<T>`                                   | —              | Labels, colours, icons, merging.                              |
-| `tooltip`      | `(bar, metrics) => string \| HTMLElement \| null` | built-in       | Strings are inserted as **text**, never HTML.                 |
-| `calendar`     | `'broadcast' \| 'gregorian' \| TimeCalendar`      | `'broadcast'`  |                                                               |
-| `zone`         | IANA zone                                         | system zone    | How `Date`/epoch/timestamp inputs are read; "today".          |
-| `locale`       | BCP 47                                            | `'en-US'`      | Month labels, default number format, sorting.                 |
-| `view`         | `ViewOptions`                                     | all data       | `mode`, initial `start`, visible `months`, `hideEmptyGroups`. |
-| `theme`        | `DeepPartial<Theme>`                              | `defaultTheme` | Fonts, sizes, colours.                                        |
-| `editable`     | `boolean`                                         | `false`        | Allow dragging bars (continuous mode).                        |
-| `rowId`        | `(row) => string \| number`                       | index          | Stable identity of a row.                                     |
-| `emptyLabel`   | `string`                                          | `'(blank)'`    | Heading for empty group keys.                                 |
-| `controls`     | `ControlsOptions`                                 | none shown     | Built-in view controls above the drawing, each opt-in.        |
+| Option                     | Type                                              | Default        |                                                                                                                                |
+| -------------------------- | ------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `start`, `end`             | `(row) => DateInput`                              | —              | Inclusive date range of a row.                                                                                                 |
+| `groupBy`                  | `GroupLevel<T>[]`                                 | —              | Row hierarchy, outermost first. May be empty.                                                                                  |
+| `metrics`                  | `MetricDef<T>[]`                                  | `[]`           | Numeric values to aggregate and total.                                                                                         |
+| `totals`                   | `TotalsOptions`                                   | —              | Grand total, per-month cells, which metrics.                                                                                   |
+| `bars`                     | `BarOptions<T>`                                   | —              | Labels, colours, icons, merging.                                                                                               |
+| `tooltip`                  | `(bar, metrics) => string \| HTMLElement \| null` | built-in       | Strings are inserted as **text**, never HTML.                                                                                  |
+| `calendar`                 | `'broadcast' \| 'gregorian' \| TimeCalendar`      | `'broadcast'`  |                                                                                                                                |
+| `zone`                     | IANA zone                                         | system zone    | How `Date`/epoch/timestamp inputs are read; "today".                                                                           |
+| `locale`                   | BCP 47                                            | `'en-US'`      | Month labels, default number format, sorting.                                                                                  |
+| `view`                     | `ViewOptions`                                     | all data       | `mode`, initial `start`, visible `months`, `range`, `hideEmptyGroups`.                                                         |
+| `theme`                    | `DeepPartial<Theme>`                              | `defaultTheme` | Fonts, sizes, colours.                                                                                                         |
+| `editable`                 | `boolean`                                         | `false`        | Allow dragging bars (continuous mode).                                                                                         |
+| `rowId`                    | `(row) => string \| number`                       | index          | Stable identity of a row.                                                                                                      |
+| `emptyLabel`               | `string`                                          | `'(blank)'`    | Heading for empty group keys.                                                                                                  |
+| `controls`                 | `ControlsOptions`                                 | none shown     | Built-in view controls above the drawing, each opt-in.                                                                         |
+| `fixedRowHeadings`         | `boolean \| 'auto'`                               | `'auto'`       | Keep row headings in place while the time grid scrolls. `'auto'`: when the window is at least `fixedRowHeadingsMinWidth` wide. |
+| `fixedRowHeadingsMinWidth` | `number`                                          | `768`          | Breakpoint (px of window width) for `fixedRowHeadings: 'auto'`.                                                                |
+| `maxHeight`                | `number \| string`                                | none           | Largest height (px or CSS length, e.g. `'75vh'`); taller content scrolls inside, with the time axis pinned.                    |
+| `tooltipOnClick`           | `boolean`                                         | `true`         | A click or tap pins the tooltip open (Escape or a press elsewhere closes it).                                                  |
 
 ### Dates
 
@@ -227,6 +231,32 @@ year-over-year mode, and the controls stay in place while an expanded drawing sc
 `labels`, for example ``labels: { today: 'Heute', allMonths: 'Alle', months: (n) => `${n} Monate` }``. Change the
 controls with `setConfig({ controls })`.
 
+### Scrolling
+
+In continuous mode the event calendar lays out **every month with data**; `view.months` is the zoom — how many months
+fill the visible width — and you scroll through the rest:
+
+- **Mouse and trackpad**: wheel / two-finger swipe (Shift+wheel scrolls sideways with a plain wheel), the scrollbar, or
+  drag the background (or any bar, unless `editable`) with the mouse.
+- **Touch**: swipe, with the browser's own momentum. With `editable`, a sideways drag on a bar moves the bar, and a
+  sideways drag on the background scrolls.
+- **Navigation**: `first`, `prev`, `next`, `last` and `today` scroll smoothly to month boundaries; `getViewState()` and
+  `viewchange` follow the scroll position.
+
+Row headings stay fixed while the grid scrolls when `fixedRowHeadings` is `true`, or by default (`'auto'`) when the window
+is at least 768px wide — on phones they scroll with the grid so the time axis gets the room. With `maxHeight`, long
+plans scroll vertically inside the calendar and the time axis stays at the top.
+
+Only groups with rows in the months in view are listed (whole months, so a month partly on screen counts), and the
+totals cover those months. As a new month scrolls into view the list updates; the row headings keep their width, so the
+grid never shifts sideways, and inside a `maxHeight` box the rows you were looking at stay in place. Set
+`view: { hideEmptyGroups: false }` to list every group all the time, or `view: { range: 'window' }` to lay out only the
+visible months and re-lay out on navigation instead of scrolling.
+
+Tooltips size to their content up to the visible part of the window and are placed beside the bar, flipping above it
+near the bottom edge. Hovering shows one; a click or tap pins it (set `tooltipOnClick: false` to keep only hover). Give
+custom tooltip content a `maxWidth` if you want it to wrap earlier.
+
 ### Bars
 
 ```ts
@@ -279,7 +309,7 @@ t.setTotalsDepth(depth);
 t.first(); t.prev(n?); t.today(); t.next(n?); t.last();
 t.setVisibleMonths(6 | 'all');
 t.setMode('continuous' | 'yoy');
-t.getViewState();                // { start, end, months, totalMonths, offset, canGoBack, canGoForward, mode }
+t.getViewState();                // what is visible now: { start, end, months, totalMonths, offset, canGoBack, canGoForward, mode }
 
 // display
 t.zoom(1.25 | 'reset');          // scale fonts and lanes
@@ -292,7 +322,7 @@ t.on('move', async ({ bar, rows, deltaDays, newStart, newEnd }) => true);
 t.on('viewchange', (view) => {});
 t.on('render', ({ layout }) => {});
 
-t.getLayout();                   // positions of everything drawn
+t.getLayout();                   // positions of everything drawn, in layout (unscrolled) coordinates
 await t.toBlob('image/png');
 t.render();                      // synchronous redraw (normally automatic)
 t.destroy();
@@ -303,7 +333,7 @@ waiting for the first `viewchange`.
 
 ### Moving bars
 
-With `editable: true`, bars can be dragged horizontally in whole days and are kept inside the visible window. On drop
+With `editable: true`, bars can be dragged horizontally in whole days and are kept inside the laid-out months. On drop
 every `move` handler is called; the move is **accepted only if every handler returns (or resolves to) `true`**,
 otherwise the bar snaps back. The library never changes your rows: after accepting, update your data and call
 `setData` (the bar stays at its dropped position until you do).
@@ -339,6 +369,11 @@ const layout = computeLayout(prepareData(rows, config), {
 drawEventCalendar(ctx, layout, defaultTheme, { measure });
 ```
 
+`computeLayout` lays out only the requested window unless you pass `range: 'all'` (every month, at the zoom where the
+requested months fill `width`), `shown` (the dates in view, whose groups are listed) and `widthScale`. To draw a scrolled part of a wide layout into a canvas of the visible
+size, pass `viewport: { x, y, width, height, frozenX, frozenY }` to `drawEventCalendar`; `visibleViewState(layout, x,
+width)` reports the visible window.
+
 ## Theming
 
 Everything visual is in `Theme` — `scale`, `baseFontSize`, `fontFamily`, `padding`, `barLines`, `barRadius`,
@@ -348,17 +383,19 @@ Everything visual is in `Theme` — `scale`, `baseFontSize`, `fontFamily`, `padd
 theme: { fontFamily: 'Inter, sans-serif', barLines: 2, colors: { rowHeaderText: '#222', palette: ['#0b7285', '#e8590c'] } }
 ```
 
-The DOM elements carry the classes `ft-event-calendar`, `ft-event-calendar-viewport` (the horizontal scroll container),
-`ft-event-calendar-canvas`, `ft-event-calendar-tooltip` and `ft-event-calendar-drag-badge`, and the controls `ft-event-calendar-controls`,
+The DOM elements carry the classes `ft-event-calendar`, `ft-event-calendar-viewport` (the scroll container),
+`ft-event-calendar-track` (its full-size content), `ft-event-calendar-canvas` (sized to the visible part), `ft-event-calendar-tooltip` and `ft-event-calendar-drag-badge`, and the controls `ft-event-calendar-controls`,
 `ft-event-calendar-control-group`, `ft-event-calendar-control` and `ft-event-calendar-range`, if you want to adjust them with CSS. The
 controls take their font and colours from the theme. They are styled inline (which works under a strict
 Content-Security-Policy), so CSS overrides need `!important`.
 
 ## Browser support
 
-Evergreen browsers (Chrome, Edge, Firefox, Safari 14+) — the event calendar uses Pointer Events, `ResizeObserver` and canvas
-2D. Very tall plans are limited by the browser's maximum canvas size (~16 000 px at 1× pixel ratio); the device pixel
-ratio is reduced automatically to stay within it.
+Evergreen browsers (Chrome, Edge, Firefox, Safari 14+) — the event calendar uses Pointer Events, `ResizeObserver`,
+`position: sticky` and canvas 2D. Tooltips use the Popover API where available (so no `overflow` or `z-index` of an
+ancestor can clip them) and fall back to `position: fixed`. The canvas only covers the visible part of the calendar;
+without `maxHeight`, very tall plans are limited by the browser's maximum canvas size (~16 000 px at 1× pixel ratio) and
+the device pixel ratio is reduced automatically to stay within it — set `maxHeight` for long plans.
 
 ## Demos
 
