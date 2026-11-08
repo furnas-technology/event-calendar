@@ -48,10 +48,6 @@ npm run check:pkg    # publint + attw
 Changesets: pushes to `main` open/update a "Version Packages" PR; merging it publishes to npm with provenance via npm
 trusted publishing (OIDC, no token), then mirrors the version to GitHub Packages with `GITHUB_TOKEN` (the user's other
 `@furnas-technology` packages live there, so their apps map the scope to `npm.pkg.github.com`; see `RELEASING.md`).
-Pushing, merging the version PR and publishing need the user's go-ahead.
-
-## Open items
-
-- 0.2.0 (the first `event-calendar` release) was published by hand, so it has no provenance. The next release is
-  the first CI publish via npm trusted publishing; check that its Release run publishes to npm with provenance, then
-  creates the tag and GitHub release and mirrors to GitHub Packages.
+Pushing, merging the version PR and publishing need the user's go-ahead. The user's npm config maps the scope to
+GitHub Packages, so check npmjs.org with `--userconfig=/dev/null --registry=https://registry.npmjs.org`. Trusted
+publisher settings and the release history are in `RELEASING.md`.

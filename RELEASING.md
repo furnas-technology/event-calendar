@@ -30,6 +30,23 @@ Release was re-run to mirror 0.2.0 to GitHub Packages, the `v0.2.0` tag and rele
 publish (0.3.0) failed with `E404 Not Found` on the `PUT` until it was set up on 2026-11-08 (see below). The old Pages URL
 `furnas-technology.github.io/timeline/` no longer works.
 
+## History: first CI publish (0.3.0)
+
+The "chore: version packages" commit for 0.3.0 (`361792b`, #9) did not publish, because the trusted publisher was not
+set up yet (see above). Once it was, the next push to `main` (`c6ed1b0`, #10, a RELEASING.md-only change) ran Release,
+which published 0.3.0 with provenance and tagged that commit. So `v0.3.0` is on `c6ed1b0`, not on the version commit,
+and that is intentional: npm's `gitHead` and provenance for 0.3.0 both name `c6ed1b0`, and the two commits differ only
+in RELEASING.md. Normally the tag lands on the version commit.
+
+## Checking what is on npm
+
+The user-level npm config maps `@furnas-technology` to GitHub Packages, and a scope registry wins over `--registry`, so
+`npm view @furnas-technology/event-calendar` shows GitHub Packages. To see npmjs.org, skip the user config:
+
+```sh
+npm view @furnas-technology/event-calendar versions dist-tags --userconfig=/dev/null --registry=https://registry.npmjs.org
+```
+
 ## npm trusted publisher (already done)
 
 npmjs.com → `@furnas-technology/event-calendar` → Settings → Trusted Publisher:
