@@ -24,11 +24,23 @@ version's CHANGELOG section as the notes. Re-running the Release job then mirror
 
 0.1.0 was published as `@furnas-technology/timeline`. On 2026-11-07 the repository was renamed to
 `furnas-technology/event-calendar` and 0.2.0 was published as `@furnas-technology/event-calendar`. npm can only set
-up trusted publishing for a package that already exists, so 0.2.0 was published by hand (without provenance). Then
-the trusted publisher was set up (organization `furnas-technology`, repository `event-calendar`, workflow
-`release.yml`), Release was re-run to mirror 0.2.0 to GitHub Packages, the `v0.2.0` tag and release were created by
-hand, and `@furnas-technology/timeline` was deprecated on npm. The old Pages URL
+up trusted publishing for a package that already exists, so 0.2.0 was published by hand (without provenance).
+Release was re-run to mirror 0.2.0 to GitHub Packages, the `v0.2.0` tag and release were created by hand, and
+`@furnas-technology/timeline` was deprecated on npm. The trusted publisher was not actually saved then, so the first CI
+publish (0.3.0) failed with `E404 Not Found` on the `PUT` until it was set up on 2026-11-08 (see below). The old Pages URL
 `furnas-technology.github.io/timeline/` no longer works.
+
+## npm trusted publisher (already done)
+
+npmjs.com → `@furnas-technology/event-calendar` → Settings → Trusted Publisher:
+
+- Provider **GitHub Actions**, organization or user `furnas-technology`, repository `event-calendar`, workflow filename
+  `release.yml`, environment name **empty** (the workflow uses no GitHub environment).
+- Allowed actions: **Allow `npm publish`** checked (the workflow publishes directly; without it a trusted publisher can
+  only stage a release for manual approval). **Allow `npm dist-tag`** unchecked (never used).
+
+If a CI publish fails with `E404 Not Found – PUT https://registry.npmjs.org/@furnas-technology%2fevent-calendar`, npm
+did not accept the workflow as a trusted publisher: check these settings, then re-run the failed Release run.
 
 ## Repository settings (already done)
 
