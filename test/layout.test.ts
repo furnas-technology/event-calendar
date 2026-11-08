@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { EventCalendarConfig } from '../src/config';
 import { packLanes } from '../src/layout/lanes';
 import { columnWidth, fitText } from '../src/layout/measure';
+import { visibleViewState } from '../src/layout/view';
+import { defaultTheme } from '../src/render/theme';
 import { generateFlightVehicles } from './fixtures/flightVehicles';
 import { fakeMeasure, findGroup, flatGroups, layoutOf } from './helpers';
 
@@ -466,5 +468,89 @@ describe('fixture smoke', () => {
 		expect(l.grandTotal?.lines[0]?.value).toBe(sum);
 		expect(l.grandTotal?.lines[0]?.formatted).toBe(`$${sum.toLocaleString('en-US')}`);
 		expect(l.height).toBeGreaterThan(l.headerHeight);
+	});
+});
+
+describe('scrollable range (range: all)', () => {
+	const rows = [row('1', 'a', 'x', '2024-01-08', '2024-01-14'), row('2', 'b', 'x', '2024-06-03', '2024-06-09')];
+	const gregorian = { ...base, calendar: 'gregorian' as const };
+
+	it('lays out every month at the zoom of the requested window', () => {
+		const window = layoutOf(rows, gregorian, { months: 2 });
+		const all = layoutOf(rows, gregorian, { months: 2 }, { range: 'all' });
+		expect(all.range?.start.toISODate()).toBe('2024-01-01');
+		expect(all.range?.end.toISODate()).toBe('2024-06-30');
+		expect(all.periodColumns).toHaveLength(6);
+		// Jan + Feb 2024 (60 days) fill the visible grid; the whole range is 182 days.
+		expect(all.gridX).toBe(window.gridX);
+		expect(all.dayWidth).toBeCloseTo(window.gridWidth / 60, 6);
+		expect(all.gridWidth).toBeCloseTo(all.dayWidth * 182, 6);
+		expect(all.width).toBe(Math.ceil(all.gridX + all.gridWidth + defaultTheme.marginX));
+		// Only groups with rows in the requested months are listed; the layout's view is the requested window.
+		expect(all.root.children.map((g) => g.key)).toEqual(['a']);
+		expect(all.shown?.start.toISODate()).toBe('2024-01-01');
+		expect(all.shown?.end.toISODate()).toBe('2024-02-29');
+		expect(all.view.months).toBe(2);
+		expect(all.view.start.toISODate()).toBe('2024-01-01');
+	});
+
+	it('lists the groups of the shown months (snapped to whole months) at a fixed grid position', () => {
+		const costly = [
+			row('1', 'a', 'x', '2024-01-08', '2024-01-14', 100),
+			row('2', 'a-very-long-group-label', 'x', '2024-06-03', '2024-06-09', 200),
+		];
+		const config = { ...gregorian, totals: { grand: true } };
+		const early = layoutOf(costly, config, { months: 2 }, { range: 'all' });
+		const late = layoutOf(
+			costly,
+			config,
+			{ months: 2 },
+			{ range: 'all', shown: { start: DateTime.utc(2024, 5, 20), end: DateTime.utc(2024, 6, 5) } },
+		);
+		expect(late.shown?.start.toISODate()).toBe('2024-05-01');
+		expect(late.shown?.end.toISODate()).toBe('2024-06-30');
+		expect(late.root.children.map((g) => g.key)).toEqual(['a-very-long-group-label']);
+		expect(late.gridX).toBe(early.gridX);
+		expect(late.columnWidths).toEqual(early.columnWidths);
+		// Totals and month cells cover the shown months only.
+		const line = late.grandTotal?.lines[0];
+		expect(line?.value).toBe(200);
+		expect(line?.periods.filter((v) => v !== null)).toEqual([200]);
+		// hideEmptyGroups: false lists everything.
+		const everything = layoutOf(
+			costly,
+			{ ...config, view: { hideEmptyGroups: false } },
+			{ months: 2 },
+			{ range: 'all' },
+		);
+		expect(everything.root.children).toHaveLength(2);
+	});
+
+	it('budgets row headings from the visible width, not the expanded width', () => {
+		const fit = layoutOf(rows, gregorian);
+		const wide = layoutOf(rows, gregorian, {}, { widthScale: 3 });
+		expect(wide.columnWidths).toEqual(fit.columnWidths);
+		expect(wide.gridWidth).toBeCloseTo(fit.gridWidth * 3, 6);
+	});
+
+	it('derives the visible window from the scroll position', () => {
+		const all = layoutOf(rows, gregorian, { months: 2 }, { range: 'all' });
+		const visible = all.gridWidth * (60 / 182);
+		const at = (x: number) => visibleViewState(all, x, visible);
+		expect(at(0)).toMatchObject({ offset: 0, months: 2, canGoBack: false, canGoForward: true });
+		expect(at(0).start.toISODate()).toBe('2024-01-01');
+		expect(at(0).end.toISODate()).toBe('2024-02-29');
+		const march = at(60 * all.dayWidth);
+		expect(march.offset).toBe(2);
+		expect(march.start.toISODate()).toBe('2024-03-01');
+		const end = at(all.gridWidth - visible);
+		expect(end.canGoForward).toBe(false);
+		expect(end.end.toISODate()).toBe('2024-06-30');
+	});
+
+	it('returns the layout view when nothing scrolls through time', () => {
+		const yoy = layoutOf(rows, gregorian, { mode: 'yoy' }, { range: 'all' });
+		expect(yoy.range).toBeNull();
+		expect(visibleViewState(yoy, 100, 200)).toBe(yoy.view);
 	});
 });

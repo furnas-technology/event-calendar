@@ -1,5 +1,5 @@
 import type { ResolvedMetric } from '../layout/aggregate';
-import type { Bar, Rect } from '../layout/types';
+import type { Bar } from '../layout/types';
 import type { Theme } from '../render/theme';
 
 /** Default tooltip: group path, dates, row count and every metric. Built with DOM nodes — no HTML injection. */
@@ -36,13 +36,16 @@ export function defaultTooltip<T>(
 	return root;
 }
 
+/** Base style of the tooltip and drag badge: fixed to the window, sized to their content. */
 export function styleFloating(el: HTMLElement, theme: Theme, font: string): void {
 	const c = theme.colors;
 	Object.assign(el.style, {
-		position: 'absolute',
+		position: 'fixed',
+		inset: 'auto',
 		top: '0px',
 		left: '0px',
-		zIndex: '20',
+		margin: '0',
+		zIndex: '1000',
 		pointerEvents: 'none',
 		visibility: 'hidden',
 		background: c.tooltipBackground,
@@ -52,32 +55,65 @@ export function styleFloating(el: HTMLElement, theme: Theme, font: string): void
 		boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
 		padding: '6px 8px',
 		font,
-		whiteSpace: 'nowrap',
-		maxWidth: '420px',
+		boxSizing: 'border-box',
+		width: 'max-content',
+		whiteSpace: 'normal',
+		overflowWrap: 'anywhere',
+		overflow: 'auto',
 	} satisfies Partial<CSSStyleDeclaration>);
 }
 
+export interface Box {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/** The part of the window the user can see, in client (`position: fixed`) coordinates. */
+export function visibleBounds(view: Window | null): Box {
+	if (!view) return { x: 0, y: 0, width: 1024, height: 768 };
+	const vv = view.visualViewport;
+	if (vv) return { x: vv.offsetLeft, y: vv.offsetTop, width: vv.width, height: vv.height };
+	const root = view.document.documentElement;
+	return {
+		x: 0,
+		y: 0,
+		width: root?.clientWidth || view.innerWidth,
+		height: root?.clientHeight || view.innerHeight,
+	};
+}
+
 /**
- * Position a floating element next to a bar, inside the visible part of a horizontally scrolling wrapper
- * (the original `getTooltipPosition`): left-aligned to the bar when the bar is in the left half of the viewport,
- * right-aligned otherwise; below the bar when there is room, else above.
+ * Where to put a floating box of `size` next to `anchor` (the visible part of a bar), inside `bounds` — all in client
+ * coordinates. Horizontally: aligned with the anchor's start when the anchor is in the left half of the bounds, with
+ * its end otherwise. Vertically: below the anchor when there is room, else above, else on the roomier side. The result
+ * is clamped so the box stays inside the bounds (a box larger than the bounds sticks to their top-left).
  */
-export function positionFloating(
-	el: HTMLElement,
-	bar: Rect,
-	viewport: { scrollLeft: number; width: number },
-	contentHeight: number,
+export function placeFloating(
+	size: { width: number; height: number },
+	anchor: Box,
+	bounds: Box,
 	gap: number,
-): void {
-	const w = el.offsetWidth;
-	const h = el.offsetHeight;
-	const minX = viewport.scrollLeft + gap;
-	const maxX = viewport.scrollLeft + viewport.width - w - gap;
-	const mid = bar.x + bar.width / 2;
-	let x = mid < viewport.scrollLeft + viewport.width / 2 ? bar.x : bar.x + bar.width - w;
+): { x: number; y: number } {
+	const minX = bounds.x + gap;
+	const maxX = bounds.x + bounds.width - size.width - gap;
+	const mid = anchor.x + anchor.width / 2;
+	let x = mid < bounds.x + bounds.width / 2 ? anchor.x : anchor.x + anchor.width - size.width;
 	x = Math.max(minX, Math.min(x, maxX));
-	let y = bar.y + bar.height + gap;
-	if (y + h > contentHeight && bar.y - gap - h >= 0) y = bar.y - gap - h;
-	el.style.left = `${Math.round(x)}px`;
-	el.style.top = `${Math.round(y)}px`;
+
+	const minY = bounds.y + gap;
+	const maxY = bounds.y + bounds.height - size.height - gap;
+	const below = anchor.y + anchor.height + gap;
+	const above = anchor.y - gap - size.height;
+	let y: number;
+	if (below <= maxY) y = below;
+	else if (above >= minY) y = above;
+	else {
+		const roomBelow = bounds.y + bounds.height - (anchor.y + anchor.height);
+		const roomAbove = anchor.y - bounds.y;
+		y = roomBelow >= roomAbove ? below : above;
+	}
+	y = Math.max(minY, Math.min(y, maxY));
+	return { x: Math.round(x), y: Math.round(y) };
 }

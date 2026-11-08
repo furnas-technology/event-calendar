@@ -3,7 +3,7 @@ import { type CalendarDate, dayNumber, maxDate, minDate, today } from '../calend
 import { periodsBetween } from '../calendar/periods';
 import type { Period, TimeCalendar } from '../calendar/types';
 import type { EventCalendarConfig } from '../config';
-import { pick, type Theme, type ThemeMetrics, themeMetrics } from '../render/theme';
+import { clamp, pick, type Theme, type ThemeMetrics, themeMetrics } from '../render/theme';
 import { type AllocationTarget, allocate, type ResolvedMetric, resolveMetrics } from './aggregate';
 import { buildBars } from './bars';
 import { buildGroupTree, type GroupNode, groupInfo, walk } from './group';
@@ -31,6 +31,7 @@ import {
 	continuousScale,
 	type ResolvedView,
 	resolveContinuousView,
+	shownMonths,
 	type ViewRequest,
 	type XScale,
 	yoyScale,
@@ -90,11 +91,23 @@ export function prepareData<T>(rows: readonly T[], config: EventCalendarConfig<T
 }
 
 export interface LayoutOptions {
-	/** Drawing width in CSS pixels. */
+	/** Visible drawing width in CSS pixels. Row-heading columns are budgeted from it. */
 	width: number;
 	measureText: MeasureText;
 	view: ViewRequest;
 	theme: Theme;
+	/** Multiplies the width of the time grid (`EventCalendar.expandWidth`). Default `1`. */
+	widthScale?: number;
+	/**
+	 * Continuous mode: `'window'` (default) lays out only the requested months; `'all'` lays out every month with data,
+	 * at the zoom where the requested months fill the visible grid — for scrolling through time.
+	 */
+	range?: 'window' | 'all';
+	/**
+	 * With `range: 'all'`: the dates in view. Only groups with rows in the whole months covering them are listed
+	 * (unless `view.hideEmptyGroups` is `false`), and totals cover those months. Default: the requested window.
+	 */
+	shown?: { readonly start: CalendarDate; readonly end: CalendarDate } | null;
 }
 
 interface Context<T> {
@@ -128,17 +141,33 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 	if (!prepared.dataStart || !prepared.dataEnd) return emptyLayout(prepared, width, tm);
 
 	// ---- view window ------------------------------------------------------------------------------------------
+	// `requested` is the window the caller asked to see; `resolved` is what gets laid out (every month for 'all').
+	let requested: ResolvedView | null = null;
 	let resolved: ResolvedView | null = null;
 	let window: { start: CalendarDate; end: CalendarDate } | null = null;
+	/** Rows overlapping these months are listed (and totalled). */
+	let shown: { start: CalendarDate; end: CalendarDate } | null = null;
 	let visibleRows: readonly NormalizedRow<T>[] = prepared.rows;
 	if (mode === 'continuous') {
-		resolved = resolveContinuousView(options.view, prepared.dataStart, prepared.dataEnd, calendar);
+		requested = resolveContinuousView(options.view, prepared.dataStart, prepared.dataEnd, calendar);
+		resolved =
+			options.range === 'all'
+				? resolveContinuousView(
+						{ ...options.view, start: null, months: null },
+						prepared.dataStart,
+						prepared.dataEnd,
+						calendar,
+					)
+				: requested;
 		window = { start: resolved.start, end: resolved.end };
-		const lo = dayNumber(resolved.start);
-		const hi = dayNumber(resolved.end);
+		const want = options.range === 'all' ? (options.shown ?? requested) : resolved;
+		shown = shownMonths(calendar, window, want.start, want.end);
+		const lo = dayNumber(shown.start);
+		const hi = dayNumber(shown.end);
 		visibleRows = prepared.rows.filter((r) => dayNumber(r.start) <= hi && dayNumber(r.end) >= lo);
 	}
 	const hideEmpty = config.view?.hideEmptyGroups ?? true;
+	if (!hideEmpty) shown = window;
 	const treeRows = hideEmpty ? visibleRows : prepared.rows;
 	const tree = buildGroupTree(treeRows, config.groupBy, prepared.metrics, prepared.collator);
 
@@ -153,9 +182,17 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 	markTotals(tree, enabled, totalsOpt.hideRedundant ?? true, shows);
 
 	// ---- row-header columns ------------------------------------------------------------------------------------
+	// A scrollable layout sizes its headings from every row, so the grid keeps its position as months scroll by.
+	let sizing = tree;
+	let sizingShows = shows;
+	if (options.range === 'all' && treeRows !== prepared.rows) {
+		sizing = buildGroupTree(prepared.rows, config.groupBy, prepared.metrics, prepared.collator);
+		sizingShows = new Set();
+		markTotals(sizing, enabled, totalsOpt.hideRedundant ?? true, sizingShows);
+	}
 	const levels = config.groupBy.length;
 	const labelWidths: number[][] = Array.from({ length: levels }, () => []);
-	for (const node of walk(tree)) labelWidths[node.level]?.push(measure(node.label, tm.rowFont));
+	for (const node of walk(sizing)) labelWidths[node.level]?.push(measure(node.label, tm.rowFont));
 	const padColumn = (w: number) => Math.max(theme.minHeaderWidth, w) + tm.padding * 2;
 	const maxHeader = width * theme.maxHeaderRatio;
 	// Full labels when they fit the budget; otherwise the original percentile rule trims outliers.
@@ -169,7 +206,7 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 	if (levels > 0) {
 		const needed = new Array<number>(levels).fill(0);
 		const consider = (node: GroupNode<T>) => {
-			if (!shows.has(node)) return;
+			if (!sizingShows.has(node)) return;
 			const from = Math.max(0, node.level);
 			for (const metric of totalMetrics) {
 				const value = node.metrics[metric.id];
@@ -181,8 +218,8 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 				needed[from] = Math.max(needed[from] ?? 0, w);
 			}
 		};
-		consider(tree);
-		for (const node of walk(tree)) consider(node);
+		consider(sizing);
+		for (const node of walk(sizing)) consider(node);
 		needed.forEach((w, from) => {
 			const have = sum(columnWidths.slice(from));
 			const last = columnWidths.length - 1;
@@ -201,8 +238,15 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 		x += w;
 	}
 	const gridX = x + (levels > 0 ? tm.padding : 0);
-	const gridRight = width - theme.marginX;
-	const gridWidth = Math.max(10, gridRight - gridX);
+	const visibleGridWidth = Math.max(10, width - theme.marginX - gridX);
+	let gridWidth = visibleGridWidth * clamp(options.widthScale ?? 1, 1, 100);
+	if (requested && resolved && requested !== resolved) {
+		// The requested months fill the visible grid; the rest of the data scrolls into view.
+		const days = (v: ResolvedView) => dayNumber(v.end) - dayNumber(v.start) + 1;
+		gridWidth *= days(resolved) / days(requested);
+	}
+	const gridRight = gridX + gridWidth;
+	const layoutWidth = Math.max(width, Math.ceil(gridRight + theme.marginX));
 
 	const scale =
 		mode === 'continuous' && resolved
@@ -218,7 +262,7 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 			const left = scale.left(m.start);
 			return { period: m, label: m.label, x: left, width: scale.right(m.end) - left };
 		});
-		allocation = { columns: resolved.months.length, columnOf: (m) => keyIndex.get(m.key) ?? -1, window };
+		allocation = { columns: resolved.months.length, columnOf: (m) => keyIndex.get(m.key) ?? -1, window: shown };
 	} else {
 		const mw = gridWidth / 12;
 		periodColumns = Array.from({ length: 12 }, (_, i) => ({
@@ -261,21 +305,21 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 	const height = Math.ceil(bottom + tm.padding);
 
 	const view: ViewState =
-		mode === 'continuous' && resolved
+		mode === 'continuous' && requested
 			? {
 					mode,
-					start: resolved.start,
-					end: resolved.end,
-					months: resolved.months.length,
-					totalMonths: resolved.totalMonths,
-					offset: resolved.offset,
-					canGoBack: resolved.offset > 0,
-					canGoForward: resolved.offset + resolved.months.length < resolved.totalMonths,
+					start: requested.start,
+					end: requested.end,
+					months: requested.months.length,
+					totalMonths: requested.totalMonths,
+					offset: requested.offset,
+					canGoBack: requested.offset > 0,
+					canGoForward: requested.offset + requested.months.length < requested.totalMonths,
 				}
 			: yoyViewState(prepared);
 
 	return {
-		width,
+		width: layoutWidth,
 		height,
 		headerHeight: header.height,
 		gridX,
@@ -288,6 +332,8 @@ export function computeLayout<T>(prepared: PreparedData<T>, options: LayoutOptio
 		periodColumns,
 		legend: header.legend,
 		view,
+		range: mode === 'continuous' && resolved ? { start: resolved.start, end: resolved.end } : null,
+		shown: mode === 'continuous' ? shown : null,
 		dayWidth: scale.dayWidth,
 		calendar,
 		bars: ctx.bars,
@@ -627,6 +673,8 @@ function emptyLayout<T>(prepared: PreparedData<T>, width: number, tm: ThemeMetri
 			canGoBack: false,
 			canGoForward: false,
 		},
+		range: null,
+		shown: null,
 		dayWidth: 0,
 		calendar: prepared.calendar,
 		bars: [],

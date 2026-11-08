@@ -88,8 +88,19 @@ export interface ViewOptions {
 	start?: DateInput;
 	/** Number of visible months. Default: all months with data. */
 	months?: number;
-	/** Hide groups with no bars inside the visible window. Default `true`. */
+	/**
+	 * List only groups with rows in the months in view (whole months, updated as you scroll), and total just those
+	 * months. Default `true`. `false` lists every group and totals every laid-out month.
+	 */
 	hideEmptyGroups?: boolean;
+	/**
+	 * Which months are laid out (continuous mode).
+	 *
+	 * - `all` (default) — every month with data; `months` sets the zoom (how many months fill the visible width) and
+	 *   you scroll through time by wheel, trackpad, touch, mouse drag or the navigation methods.
+	 * - `window` — only the `months` from `start`; navigation re-lays out instead of scrolling.
+	 */
+	range?: 'all' | 'window';
 }
 
 export interface EventCalendarConfig<T> {
@@ -121,6 +132,20 @@ export interface EventCalendarConfig<T> {
 	emptyLabel?: string;
 	/** Built-in view controls above the drawing. Nothing is shown unless an option is `true`. */
 	controls?: ControlsOptions;
+	/**
+	 * Keep the row headings in place while the time grid scrolls horizontally. `'auto'` (default) fixes them when the
+	 * window is at least {@link EventCalendarConfig.fixedRowHeadingsMinWidth} pixels wide.
+	 */
+	fixedRowHeadings?: boolean | 'auto';
+	/** Window width from which `fixedRowHeadings: 'auto'` fixes the headings. Default `768`. */
+	fixedRowHeadingsMinWidth?: number;
+	/**
+	 * Largest height of the calendar (pixels or any CSS length, e.g. `'75vh'`). Taller content scrolls inside the
+	 * calendar, with the time axis pinned at the top. Default: no limit — the calendar grows and the page scrolls.
+	 */
+	maxHeight?: number | string;
+	/** Clicking or tapping a bar pins its tooltip open until you click elsewhere or press Escape. Default `true`. */
+	tooltipOnClick?: boolean;
 }
 
 /** Text of the built-in controls. */

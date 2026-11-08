@@ -17,7 +17,12 @@ An older abandoned attempt is in `~/Development/timeline-angular-2024` — refer
   fiscal calendars. Months must be numbered within their year so `(year, number)` advances by one per month.
 - `src/layout/` — pure, DOM-free: normalize → group tree → bars → lanes → totals → positions (`computeLayout`).
 - `src/render/` — theme + canvas renderer (draws a finished layout). `src/interaction/` — hit test, tooltip.
-- `src/eventCalendar.ts` — `EventCalendar` class (DOM, ResizeObserver, DPR, navigation, pointer/drag events).
+- `src/eventCalendar.ts` — `EventCalendar` class (DOM, ResizeObserver, DPR, navigation, pointer/drag events). DOM is
+  viewport (native scroller) > track (full layout size) > sticky canvas sized to the visible part; `drawEventCalendar`
+  gets a `viewport` and draws four clipped quadrants (fixed headings / pinned time axis / corner / body). With
+  `view.range: 'all'` (default) every month is laid out and navigation scrolls; only groups with rows in the whole
+  months in view are listed (`layout.shown`), re-laid out when those months change — heading widths come from all rows
+  so the grid never moves. Tooltips are fixed-position popovers.
 - `examples/` — Vite demo gallery (dance, advertising, hurricanes, contracts); `examples/data/README.md` has sources.
 
 ## Commands

@@ -36,6 +36,7 @@
 			}
 			nav {
 				display: flex;
+				flex-wrap: wrap;
 				gap: 4px;
 			}
 			nav button {
@@ -76,6 +77,7 @@
 			}
 			.toolbar fieldset {
 				display: flex;
+				flex-wrap: wrap;
 				gap: 4px;
 				align-items: center;
 				border: 0;
@@ -151,6 +153,11 @@
 					<option value="3">3 lines</option>
 				</select>
 				<select id="calendar" aria-label="Calendar"></select>
+				<select id="headings" aria-label="Row headings">
+					<option value="auto">Headings: auto</option>
+					<option value="fixed">Headings: fixed</option>
+					<option value="scroll">Headings: scroll</option>
+				</select>
 			</fieldset>
 		</div>
 		<div id="plan"></div>
